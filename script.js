@@ -1,7 +1,6 @@
-// (前回の回答で提示した完全な script.js の内容をそのまま使用します)
 window.addEventListener('DOMContentLoaded', () => {
 
-    // ▼▼▼ 1. HTML要素を取得 ▼▼▼
+    // ▼▼▼ 1. HTML要素を取得 (変更なし) ▼▼▼
     const durationInput = document.getElementById('duration');
     const onDurationInput = document.getElementById('onDuration');
     const offDurationInput = document.getElementById('offDuration');
@@ -16,7 +15,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('waveformCanvas');
     const ctx = canvas.getContext('2d');
 
-    // Canvasの高解像度対応
+    // Canvasの高解像度対応 (変更なし)
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * dpr;
@@ -25,26 +24,30 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // --- イベントリスナー ---
 
+    // ▼▼▼ 修正箇所: panInput をリストに追加 ▼▼▼
     const inputElementsToWatch = [
         durationInput,
         onDurationInput,
         offDurationInput,
         frequencyInput,
-        gainInput
+        gainInput,
+        panInput // ★ ここを追加しました ★
     ];
+    // ▲▲▲ 修正箇所 ▲▲▲
 
     inputElementsToWatch.forEach(input => {
         input.addEventListener('input', () => {
             if (input === gainInput) {
                 gainValueDisplay.textContent = parseFloat(gainInput.value).toFixed(2);
             } else if (input === panInput) {
+                // panInputが動いたときに、ここで値が更新されます。
                 panValueDisplay.textContent = parseFloat(panInput.value).toFixed(2);
             }
             drawWaveform();
         });
     });
 
-    // 「生成ボタン」がクリックされたときの処理
+    // 「生成ボタン」がクリックされたときの処理 (変更なし)
     generateButton.addEventListener('click', async () => {
 
         // 1. パラメータの取得
@@ -55,7 +58,7 @@ window.addEventListener('DOMContentLoaded', () => {
         const gain = parseFloat(gainInput.value);
         const pan = parseFloat(panInput.value);
 
-        // バリデーション
+        // バリデーション (変更なし)
         if (isNaN(duration) || duration <= 0) { alert("全体の長さを正しく入力してください。"); return; }
         if (isNaN(onDuration) || onDuration <= 0) { alert("音が鳴る時間を正しく入力してください。"); return; }
         if (isNaN(offDuration) || offDuration < 0) { alert("無音の時間を正しく入力してください。"); return; }
@@ -70,7 +73,7 @@ window.addEventListener('DOMContentLoaded', () => {
             // 3. AudioBufferをWAV(Blob)に変換
             const wavBlob = bufferToWavBlob(audioBuffer);
 
-            // ファイル名生成ロジック
+            // ファイル名生成ロジック (変更なし)
             const panLabel = pan === 0 ? 'C' : (pan < 0 ? 'L' : 'R') + Math.abs(pan).toFixed(2).replace('.', '');
             const gainLabel = gain.toFixed(2).replace('.', '');
             const freqLabel = frequency.toFixed(0);
@@ -90,7 +93,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
     // ------------------------------------
-    // --- 関数定義 ---
+    // --- 関数定義 (変更なし) ---
     // ------------------------------------
 
     /**
@@ -104,7 +107,7 @@ window.addEventListener('DOMContentLoaded', () => {
         const period = onDuration + offDuration;
 
         const width = canvas.clientWidth;
-        const height = canvas.clientHeight; // Canvasの高さを動的に取得
+        const height = canvas.clientHeight;
         const midY = height / 2;
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
