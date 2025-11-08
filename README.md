@@ -1,6 +1,8 @@
 # 🔊 WAV Generator (サイン波パルス波形ジェネレーター)
 
-[![GitHub Pages Status](https://github.com/nekomimi-daimao/WavGenerator/actions/workflows/deploy.yml/badge.svg)](https://nekomimi-daimao.github.io/WavGenerator/)
+[https://nekomimi-daimao.github.io/WavGenerator/](https://nekomimi-daimao.github.io/WavGenerator/)
+
+<img src="readme/img/screenshot.png" width="300">
 
 このプロジェクトは、Webブラウザ上で動作する**サイン波のパルス波形（断続的な音）ジェネレーター**です。任意の周波数、ゲイン、パルス時間（ON/OFF時間）を設定し、その場でプレビュー再生し、最終的なWAVファイルをダウンロードできます。
 
