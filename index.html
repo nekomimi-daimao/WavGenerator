@@ -26,6 +26,25 @@
             margin-bottom: 5px;
             font-weight: bold;
         }
+        /* スライダーと値表示を横並びにするためのコンテナ */
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 10px; /* スライダーと値の間のスペース */
+        }
+        .slider-row input[type="range"] {
+            flex-grow: 1; /* スライダーを最大限に広げる */
+            width: auto; /* width: 100% を上書き */
+        }
+        /* 値表示のスタイルを調整 */
+        .value-display-inline {
+            font-size: 0.9em;
+            color: #555;
+            min-width: 60px; /* 値表示の幅を確保 */
+            text-align: right;
+            line-height: 1; /* 行の高さを調整 */
+        }
+
         input[type="number"],
         input[type="range"] {
             width: 100%;
@@ -36,11 +55,7 @@
             padding-left: 0;
             padding-right: 0;
         }
-        .value-display {
-            font-size: 0.9em;
-            color: #555;
-            text-align: right;
-        }
+        /* value-display クラスは使用しなくなりました */
 
         .waveform-container {
             margin-bottom: 20px;
@@ -51,7 +66,9 @@
         canvas {
             display: block;
             width: 100%;
+            /* ▼▼▼ Canvasの高さを100pxに戻す ▼▼▼ */
             height: 100px;
+            /* ▲▲▲ 修正箇所 ▲▲▲ */
         }
 
         /* パルス時間の設定を一行にするためのCSS */
@@ -120,21 +137,25 @@
 
     <div class="control-group">
         <label for="gain">音量（ゲイン）:</label>
-        <input type="range" id="gain" value="0.5" min="0" max="1" step="0.01">
-        <div class="value-display">
-            （現在値: <span id="gainValue">0.50</span>）
+        <div class="slider-row">
+            <input type="range" id="gain" value="0.5" min="0" max="1" step="0.01">
+            <div class="value-display-inline">
+                <span id="gainValue">0.50</span>
+            </div>
         </div>
     </div>
-
     <div class="control-group">
         <label for="pan">左右（パン）:</label>
-        <input type="range" id="pan" value="0" min="-1" max="1" step="0.01">
+        <div class="slider-row">
+            <input type="range" id="pan" value="0" min="-1" max="1" step="0.01">
+            <div class="value-display-inline">
+                <span id="panValue">0.00</span>
+            </div>
+        </div>
         <div class="value-display">
-            （左: -1.00, 中央: 0.00, 右: +1.00）<br>
-            現在値: <span id="panValue">0.00</span>
+            （左: -1.00, 中央: 0.00, 右: +1.00）
         </div>
     </div>
-
     <button id="generateButton">WAVを生成してダウンロード</button>
 
     <a id="downloadLink"></a>

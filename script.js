@@ -1,3 +1,4 @@
+// (前回の回答で提示した完全な script.js の内容をそのまま使用します)
 window.addEventListener('DOMContentLoaded', () => {
 
     // ▼▼▼ 1. HTML要素を取得 ▼▼▼
@@ -93,7 +94,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // ------------------------------------
 
     /**
-     * 波形をCanvasに描画する関数 (全体表示のために修正済み)
+     * 波形をCanvasに描画する関数
      */
     function drawWaveform() {
         const frequency = parseFloat(frequencyInput.value) || 440;
@@ -103,7 +104,7 @@ window.addEventListener('DOMContentLoaded', () => {
         const period = onDuration + offDuration;
 
         const width = canvas.clientWidth;
-        const height = canvas.clientHeight;
+        const height = canvas.clientHeight; // Canvasの高さを動的に取得
         const midY = height / 2;
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -119,22 +120,18 @@ window.addEventListener('DOMContentLoaded', () => {
         ctx.strokeStyle = '#007bff';
         ctx.lineWidth = 2;
 
-        // ▼▼▼ 波形の全体表示のための修正ロジック ▼▼▼
-        const currentDuration = parseFloat(durationInput.value) || 30; // 現在の全体の長さを取得
-        let cyclesToDraw = 2; // 最低2周期
+        const currentDuration = parseFloat(durationInput.value) || 30;
+        let cyclesToDraw = 2;
 
-        // 周期 (period) がゼロまたは負の場合は描画しないように保護
         if (period <= 0) return;
 
         const maxCyclesToShow = Math.ceil(currentDuration / period);
 
-        // 最大10周期、または全体の長さに含まれる周期の数まで描画します。
         if (maxCyclesToShow > 2) {
             cyclesToDraw = Math.min(10, maxCyclesToShow);
         }
 
-        const timeRange = period * cyclesToDraw; // 描画する時間の範囲を決定
-        // ▲▲▲ 修正ロジック終了 ▲▲▲
+        const timeRange = period * cyclesToDraw;
 
         if (timeRange === 0) {
             return;
