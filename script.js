@@ -1,6 +1,6 @@
 window.addEventListener('DOMContentLoaded', () => {
 
-    // ▼▼▼ 1. HTML要素を取得 (すべての変数がこのスコープ内で定義されていることを確認) ▼▼▼
+    // ▼▼▼ 1. HTML要素を取得 ▼▼▼
     const durationInput = document.getElementById('duration');
     const onDurationInput = document.getElementById('onDuration');
     const offDurationInput = document.getElementById('offDuration');
@@ -15,7 +15,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('waveformCanvas');
     const ctx = canvas.getContext('2d');
 
-    // (Canvasの高解像度対応 ... 変更なし)
+    // Canvasの高解像度対応
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * dpr;
@@ -89,11 +89,11 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
     // ------------------------------------
-    // --- 関数定義 (省略せずに完全版を再掲) ---
+    // --- 関数定義 ---
     // ------------------------------------
 
     /**
-     * 波形をCanvasに描画する関数
+     * 波形をCanvasに描画する関数 (全体表示のために修正済み)
      */
     function drawWaveform() {
         const frequency = parseFloat(frequencyInput.value) || 440;
@@ -119,8 +119,23 @@ window.addEventListener('DOMContentLoaded', () => {
         ctx.strokeStyle = '#007bff';
         ctx.lineWidth = 2;
 
-        const cyclesToDraw = 2;
-        const timeRange = period * cyclesToDraw;
+        // ▼▼▼ 波形の全体表示のための修正ロジック ▼▼▼
+        const currentDuration = parseFloat(durationInput.value) || 30; // 現在の全体の長さを取得
+        let cyclesToDraw = 2; // 最低2周期
+
+        // 周期 (period) がゼロまたは負の場合は描画しないように保護
+        if (period <= 0) return;
+
+        const maxCyclesToShow = Math.ceil(currentDuration / period);
+
+        // 最大10周期、または全体の長さに含まれる周期の数まで描画します。
+        if (maxCyclesToShow > 2) {
+            cyclesToDraw = Math.min(10, maxCyclesToShow);
+        }
+
+        const timeRange = period * cyclesToDraw; // 描画する時間の範囲を決定
+        // ▲▲▲ 修正ロジック終了 ▲▲▲
+
         if (timeRange === 0) {
             return;
         }
