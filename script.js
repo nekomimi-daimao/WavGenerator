@@ -1,9 +1,9 @@
 window.addEventListener('DOMContentLoaded', () => {
 
-    // HTML要素を取得 (変更なし)
+    // HTML要素を取得 
     const durationInput = document.getElementById('duration');
-    const onDurationInput = document.getElementById('onDuration');
-    const offDurationInput = document.getElementById('offDuration');
+    const onDurationInput = document.getElementById('onDuration'); // IDを直接取得
+    const offDurationInput = document.getElementById('offDuration'); // IDを直接取得
     const frequencyInput = document.getElementById('frequency');
     const gainInput = document.getElementById('gain');
     const gainValueDisplay = document.getElementById('gainValue');
@@ -22,7 +22,7 @@ window.addEventListener('DOMContentLoaded', () => {
     canvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
 
-    // --- イベントリスナー (変更なし) ---
+    // --- イベントリスナー ---
 
     // 各入力要素の変更時に波形を更新
     const inputElementsToWatch = [
@@ -44,7 +44,7 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 「生成ボタン」がクリックされたときの処理 (変更なし)
+    // 「生成ボタン」がクリックされたときの処理
     generateButton.addEventListener('click', async () => {
 
         // 1. パラメータの取得
@@ -55,7 +55,8 @@ window.addEventListener('DOMContentLoaded', () => {
         const gain = parseFloat(gainInput.value);
         const pan = parseFloat(panInput.value);
 
-        // バリデーション (省略)
+
+        // バリデーション
         if (isNaN(duration) || duration <= 0) { alert("全体の長さを正しく入力してください。"); return; }
         if (isNaN(onDuration) || onDuration <= 0) { alert("音が鳴る時間を正しく入力してください。"); return; }
         if (isNaN(offDuration) || offDuration < 0) { alert("無音の時間を正しく入力してください。"); return; }
@@ -73,7 +74,7 @@ window.addEventListener('DOMContentLoaded', () => {
             const wavBlob = bufferToWavBlob(audioBuffer);
 
             // 4. Blobをダウンロード
-            const filename = `sine_${frequency}Hz_Pulse_${onDuration}s.wav`;
+            const filename = `sine_${frequency}Hz_Pulse_${onDuration}s_${offDuration}s.wav`;
             downloadBlob(wavBlob, filename);
 
             console.log("生成完了");
@@ -84,17 +85,20 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- 関数定義 ---
+    // --- 関数定義 (省略せず再掲) ---
 
     /**
      * 波形をCanvasに描画する関数
      */
     function drawWaveform() {
-        // (前回と同じコード...省略せず再掲)
+        // パラメータを取得
         const frequency = parseFloat(frequencyInput.value) || 440;
         const gain = parseFloat(gainInput.value) || 0;
+
+        // onDuration, offDuration を直接取得
         const onDuration = parseFloat(onDurationInput.value) || 0.1;
         const offDuration = parseFloat(offDurationInput.value) || 0.1;
+
         const period = onDuration + offDuration;
 
         const width = canvas.clientWidth;
@@ -116,6 +120,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
         const cyclesToDraw = 2;
         const timeRange = period * cyclesToDraw;
+        if (timeRange === 0) {
+            return;
+        }
 
         let firstPoint = true;
 
@@ -148,40 +155,31 @@ window.addEventListener('DOMContentLoaded', () => {
      * 2. オーディオバッファを生成する関数
      */
     function createSineWaveBuffer(duration, onDuration, offDuration, frequency, gain, pan) {
-        // (前回と同じコード...省略せず再掲)
         const sampleRate = 44100;
         const totalSamples = Math.floor(sampleRate * duration);
-
         const audioContext = new OfflineAudioContext(2, totalSamples, sampleRate);
-
         const oscillator = audioContext.createOscillator();
         oscillator.type = 'sine';
         oscillator.frequency.setValueAtTime(frequency, 0);
-
         const gainNode = audioContext.createGain();
         gainNode.gain.setValueAtTime(0, 0);
-
         const pannerNode = audioContext.createStereoPanner();
         pannerNode.pan.setValueAtTime(pan, 0);
-
         oscillator.connect(gainNode);
         gainNode.connect(pannerNode);
         pannerNode.connect(audioContext.destination);
-
         const cyclePeriod = onDuration + offDuration;
         let currentTime = 0;
 
         while (currentTime < duration) {
             gainNode.gain.setValueAtTime(gain, currentTime);
             currentTime += onDuration;
-
             gainNode.gain.setValueAtTime(0, currentTime);
             currentTime += offDuration;
         }
 
         oscillator.start(0);
         oscillator.stop(duration);
-
         return audioContext.startRendering();
     }
 
@@ -189,23 +187,17 @@ window.addEventListener('DOMContentLoaded', () => {
      * 3. AudioBufferをWAV(Blob)に変換する関数
      */
     function bufferToWavBlob(buffer) {
-        // (前回と同じコード...省略せず再掲)
         const numOfChan = buffer.numberOfChannels;
         const sampleRate = buffer.sampleRate;
         const bitsPerSample = 16;
         const bytesPerSample = bitsPerSample / 8;
-
         const pcmDataL = buffer.getChannelData(0);
         const pcmDataR = buffer.getChannelData(1);
         const dataLength = pcmDataL.length;
-
         const dataSize = dataLength * numOfChan * bytesPerSample;
-
         const bufferSize = 44 + dataSize;
         const arrayBuffer = new ArrayBuffer(bufferSize);
         const view = new DataView(arrayBuffer);
-
-        // WAVヘッダ
         writeString(view, 0, 'RIFF');
         view.setUint32(4, bufferSize - 8, true);
         writeString(view, 8, 'WAVE');
@@ -219,21 +211,17 @@ window.addEventListener('DOMContentLoaded', () => {
         view.setUint16(34, bitsPerSample, true);
         writeString(view, 36, 'data');
         view.setUint32(40, dataSize, true);
-
-        // PCMデータ
         let offset = 44;
         for (let i = 0; i < dataLength; i++) {
             let sL = Math.max(-1, Math.min(1, pcmDataL[i]));
             let valL = sL < 0 ? sL * 0x8000 : sL * 0x7FFF;
             view.setInt16(offset, valL, true);
             offset += bytesPerSample;
-
             let sR = Math.max(-1, Math.min(1, pcmDataR[i]));
             let valR = sR < 0 ? sR * 0x8000 : sR * 0x7FFF;
             view.setInt16(offset, valR, true);
             offset += bytesPerSample;
         }
-
         return new Blob([view], { type: 'audio/wav' });
     }
 
@@ -241,7 +229,6 @@ window.addEventListener('DOMContentLoaded', () => {
      * 4. Blobデータをファイルとしてダウンロードさせる関数
      */
     function downloadBlob(blob, filename) {
-        // (前回と同じコード...省略せず再掲)
         const url = URL.createObjectURL(blob);
         downloadLink.href = url;
         downloadLink.download = filename;
@@ -255,14 +242,13 @@ window.addEventListener('DOMContentLoaded', () => {
      * ヘルパー関数
      */
     function writeString(view, offset, string) {
-        // (前回と同じコード...省略せず再掲)
         for (let i = 0; i < string.length; i++) {
             view.setUint8(offset + i, string.charCodeAt(i));
         }
     }
 
 
-    // --- 初期化 --- (変更なし)
+    // --- 初期化 ---
     drawWaveform();
     panValueDisplay.textContent = parseFloat(panInput.value).toFixed(2);
-}); // <-- ここで window.addEventListener('DOMContentLoaded', ... の処理が閉じていることを確認！
+});
