@@ -41,7 +41,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
     /**
      * 最新の入力パラメータをオブジェクトとして取得する関数
-     * ★ 波形表示/再生/生成の前に毎回これを呼び出します。★
      */
     function getParameters() {
         return {
@@ -58,6 +57,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     /**
      * 2-A. オーディオバッファを生成する関数 (WAVダウンロード用)
+     * ゲイン設定を setValueAtTime に戻す
      */
     function createSineWaveBuffer(params) {
         const { duration, onDuration, offDuration, frequency, gain, pan } = params;
@@ -69,18 +69,23 @@ window.addEventListener('DOMContentLoaded', () => {
         oscillator.type = 'sine';
         oscillator.frequency.setValueAtTime(frequency, 0);
         const gainNode = audioContext.createGain();
-        gainNode.gain.setValueAtTime(0, 0);
+        gainNode.gain.setValueAtTime(0, 0); // 初期ゲインは0
         const pannerNode = audioContext.createStereoPanner();
         pannerNode.pan.setValueAtTime(pan, 0);
         oscillator.connect(gainNode);
         gainNode.connect(pannerNode);
         pannerNode.connect(audioContext.destination);
-        const cyclePeriod = onDuration + offDuration;
+
         let currentTime = 0;
 
+        // パルス信号のゲイン設定 (瞬時切り替え)
         while (currentTime < duration) {
+
+            // ON
             gainNode.gain.setValueAtTime(gain, currentTime);
             currentTime += onDuration;
+
+            // OFF
             gainNode.gain.setValueAtTime(0, currentTime);
             currentTime += offDuration;
         }
@@ -92,6 +97,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     /**
      * 2-B. サイン波をリアルタイムで再生する関数 (プレビュー用)
+     * ゲイン設定を setValueAtTime に戻す
      */
     function playSineWave(params) {
         const { duration, onDuration, offDuration, frequency, gain, pan } = params;
@@ -117,11 +123,15 @@ window.addEventListener('DOMContentLoaded', () => {
 
             let currentTime = context.currentTime;
             const endTime = currentTime + duration;
-            const cyclePeriod = onDuration + offDuration;
 
+            // パルス信号のゲイン設定 (瞬時切り替え)
             while (currentTime < endTime) {
+
+                // ON
                 gainNode.gain.setValueAtTime(gain, currentTime);
                 currentTime += onDuration;
+
+                // OFF
                 gainNode.gain.setValueAtTime(0, currentTime);
                 currentTime += offDuration;
             }
@@ -140,7 +150,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * 3. AudioBufferをWAV(Blob)に変換する関数
+     * 3. AudioBufferをWAV(Blob)に変換する関数 (変更なし)
      */
     function bufferToWavBlob(buffer) {
         const numOfChan = buffer.numberOfChannels;
@@ -182,7 +192,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * 4. Blobデータをファイルとしてダウンロードさせる関数
+     * 4. Blobデータをファイルとしてダウンロードさせる関数 (変更なし)
      */
     function downloadBlob(blob, filename) {
         const url = URL.createObjectURL(blob);
@@ -195,7 +205,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * ヘルパー関数
+     * ヘルパー関数 (変更なし)
      */
     function writeString(view, offset, string) {
         for (let i = 0; i < string.length; i++) {
@@ -204,21 +214,36 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
 
+    // --- Canvasの高解像度対応と初期設定 ---
+
+    // DPRの取得と設定
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    // CSSで指定された論理的なサイズを取得
+    const visualWidth = canvas.clientWidth;
+    const visualHeight = canvas.clientHeight;
+
+
     // --- 波形描画関数 ---
 
     /**
      * 波形をCanvasに描画する関数
      */
     function drawWaveform() {
-        // ★ 最新のパラメータを取得 ★
         const params = getParameters();
         const { frequency, gain, onDuration, offDuration } = params;
         const period = onDuration + offDuration;
 
-        const width = canvas.clientWidth;
-        const height = canvas.clientHeight;
+        // ★ 描画にはCSSサイズを使用 (visualWidth, visualHeight) ★
+        const width = visualWidth;
+        const height = visualHeight;
         const midY = height / 2;
 
+        // DPRを設定しているため、clearRectはキャンバスの物理的なサイズで行う
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // 中心線
@@ -233,20 +258,15 @@ window.addEventListener('DOMContentLoaded', () => {
         ctx.strokeStyle = '#007bff';
         ctx.lineWidth = 2;
 
-        const currentDuration = params.duration; // drawWaveformの引数ではなく、最新値を取得
+        const currentDuration = params.duration;
 
         let cyclesToDraw = 2;
-
         if (period <= 0) return;
-
         const maxCyclesToShow = Math.ceil(currentDuration / period);
-
         if (maxCyclesToShow > 2) {
             cyclesToDraw = Math.min(10, maxCyclesToShow);
         }
-
         const timeRange = period * cyclesToDraw;
-
         if (timeRange === 0) {
             return;
         }
@@ -264,6 +284,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 instantaneous_gain = 0;
             }
 
+            // midYを基準に、ゲインと振幅を適用してY座標を計算
             const y = instantaneous_gain * Math.sin(2 * Math.PI * frequency * t);
             const canvasY = midY - (y * midY);
 
@@ -296,7 +317,6 @@ window.addEventListener('DOMContentLoaded', () => {
             } else if (input === panInput) {
                 panValueDisplay.textContent = parseFloat(panInput.value).toFixed(2);
             }
-            // ★ 入力が変更されたら波形を再描画 ★
             drawWaveform();
         });
     });
@@ -322,7 +342,6 @@ window.addEventListener('DOMContentLoaded', () => {
         previewButton.disabled = true;
         stopButton.disabled = false;
 
-        // ★ playSineWave にパラメータオブジェクトを渡す ★
         playSineWave(params)
             .then(resetUI)
             .catch(error => {
@@ -338,10 +357,9 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 「生成ボタン」がクリックされたときの処理 (修正)
+    // 「生成ボタン」がクリックされたときの処理
     generateButton.addEventListener('click', async () => {
 
-        // ★ 最新のパラメータを取得 ★
         const params = getParameters();
         const { duration, onDuration, offDuration, frequency, gain, pan } = params;
 
