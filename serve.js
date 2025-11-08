@@ -3,4 +3,4 @@
 
 import { serveDir } from "jsr:@std/http@1";
 
-Deno.serve({ port: 4410 }, request => serveDir(request, { fsRoot: "./static", urlRoot: ""}));
+Deno.serve({ port: 4410 }, request => serveDir(request, { fsRoot: "./docs", urlRoot: ""}));
