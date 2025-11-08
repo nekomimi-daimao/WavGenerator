@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WAVジェネレーター</title>
     <style>
-        /* (CSSは変更ありません ... 省略) */
+        /* (CSSの共通部分...省略) */
         body {
             font-family: sans-serif;
             padding: 20px;
@@ -60,10 +60,10 @@
             gap: 10px;
             margin-bottom: 5px;
         }
-        .pulse-inputs span {
+        .pulse-inputs .input-container { /* span からクラス名変更 */
             flex: 1;
         }
-        .pulse-inputs label {
+        .pulse-inputs .input-container label {
             font-size: 0.8em;
             font-weight: normal;
         }
@@ -102,14 +102,14 @@
     <div class="control-group">
         <label>パルス時間:</label>
         <div class="pulse-inputs">
-                <span>
-                    <label for="onDuration">ON（秒）</label>
-                    <input type="number" id="onDuration" value="1" min="1" step="1">
-                </span>
-            <span>
-                    <label for="offDuration">OFF（秒）</label>
-                    <input type="number" id="offDuration" value="1" min="0" step="1">
-                </span>
+            <div class="input-container">
+                <label for="onDuration">ON（秒）</label>
+                <input type="number" id="onDuration" value="1" min="1" step="1">
+            </div>
+            <div class="input-container">
+                <label for="offDuration">OFF（秒）</label>
+                <input type="number" id="offDuration" value="1" min="0" step="1">
+            </div>
         </div>
     </div>
 

@@ -1,9 +1,9 @@
 window.addEventListener('DOMContentLoaded', () => {
 
-    // HTML要素を取得 
+    // ▼▼▼ 1. HTML要素を取得 (すべての変数がこのスコープ内で定義されていることを確認) ▼▼▼
     const durationInput = document.getElementById('duration');
-    const onDurationInput = document.getElementById('onDuration'); // IDを直接取得
-    const offDurationInput = document.getElementById('offDuration'); // IDを直接取得
+    const onDurationInput = document.getElementById('onDuration');
+    const offDurationInput = document.getElementById('offDuration');
     const frequencyInput = document.getElementById('frequency');
     const gainInput = document.getElementById('gain');
     const gainValueDisplay = document.getElementById('gainValue');
@@ -24,7 +24,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // --- イベントリスナー ---
 
-    // 各入力要素の変更時に波形を更新
     const inputElementsToWatch = [
         durationInput,
         onDurationInput,
@@ -55,7 +54,6 @@ window.addEventListener('DOMContentLoaded', () => {
         const gain = parseFloat(gainInput.value);
         const pan = parseFloat(panInput.value);
 
-
         // バリデーション
         if (isNaN(duration) || duration <= 0) { alert("全体の長さを正しく入力してください。"); return; }
         if (isNaN(onDuration) || onDuration <= 0) { alert("音が鳴る時間を正しく入力してください。"); return; }
@@ -64,8 +62,6 @@ window.addEventListener('DOMContentLoaded', () => {
         if (isNaN(gain) || gain < 0 || gain > 1) { alert("ゲインは0から1の間で入力してください。"); return; }
         if (isNaN(pan) || pan < -1 || pan > 1) { alert("パンは-1から1の間で入力してください。"); return; }
 
-        console.log(`生成開始: ${duration}秒, ON:${onDuration}s, OFF:${offDuration}s, ゲイン ${gain}, パン ${pan}`);
-
         try {
             // 2. オーディオバッファを生成
             const audioBuffer = await createSineWaveBuffer(duration, onDuration, offDuration, frequency, gain, pan);
@@ -73,11 +69,18 @@ window.addEventListener('DOMContentLoaded', () => {
             // 3. AudioBufferをWAV(Blob)に変換
             const wavBlob = bufferToWavBlob(audioBuffer);
 
-            // 4. Blobをダウンロード
-            const filename = `sine_${frequency}Hz_Pulse_${onDuration}s_${offDuration}s.wav`;
-            downloadBlob(wavBlob, filename);
+            // ファイル名生成ロジック
+            const panLabel = pan === 0 ? 'C' : (pan < 0 ? 'L' : 'R') + Math.abs(pan).toFixed(2).replace('.', '');
+            const gainLabel = gain.toFixed(2).replace('.', '');
+            const freqLabel = frequency.toFixed(0);
+            const durLabel = duration.toFixed(0);
+            const onLabel = onDuration.toFixed(0);
+            const offLabel = offDuration.toFixed(0);
+            const filename = `Dur${durLabel}_ON${onLabel}_OFF${offLabel}_Freq${freqLabel}_Gain${gainLabel}_Pan${panLabel}.wav`;
 
-            console.log("生成完了");
+            // 4. Blobをダウンロード
+            downloadBlob(wavBlob, filename);
+            console.log(`生成完了: ${filename}`);
 
         } catch (error) {
             console.error("WAVの生成に失敗しました:", error);
@@ -85,20 +88,18 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- 関数定義 (省略せず再掲) ---
+    // ------------------------------------
+    // --- 関数定義 (省略せずに完全版を再掲) ---
+    // ------------------------------------
 
     /**
      * 波形をCanvasに描画する関数
      */
     function drawWaveform() {
-        // パラメータを取得
         const frequency = parseFloat(frequencyInput.value) || 440;
         const gain = parseFloat(gainInput.value) || 0;
-
-        // onDuration, offDuration を直接取得
-        const onDuration = parseFloat(onDurationInput.value) || 0.1;
-        const offDuration = parseFloat(offDurationInput.value) || 0.1;
-
+        const onDuration = parseFloat(onDurationInput.value) || 1;
+        const offDuration = parseFloat(offDurationInput.value) || 1;
         const period = onDuration + offDuration;
 
         const width = canvas.clientWidth;
