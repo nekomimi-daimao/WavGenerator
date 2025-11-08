@@ -56,12 +56,8 @@ window.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // --- AudioContext/WAV関連の関数 ---
+    // --- AudioContext/WAV関連の関数 (変更なし) ---
 
-    /**
-     * 2-A. オーディオバッファを生成する関数 (WAVダウンロード用)
-     * ゲイン設定を setValueAtTime (瞬時切り替え)
-     */
     function createSineWaveBuffer(params) {
         const { duration, onDuration, offDuration, frequency, gain, pan } = params;
 
@@ -81,14 +77,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
         let currentTime = 0;
 
-        // パルス信号のゲイン設定 (瞬時切り替え)
         while (currentTime < duration) {
-
-            // ON
             gainNode.gain.setValueAtTime(gain, currentTime);
             currentTime += onDuration;
-
-            // OFF
             gainNode.gain.setValueAtTime(0, currentTime);
             currentTime += offDuration;
         }
@@ -98,10 +89,6 @@ window.addEventListener('DOMContentLoaded', () => {
         return audioContext.startRendering();
     }
 
-    /**
-     * 2-B. サイン波をリアルタイムで再生する関数 (プレビュー用)
-     * ゲイン設定を setValueAtTime (瞬時切り替え)
-     */
     function playSineWave(params) {
         const { duration, onDuration, offDuration, frequency, gain, pan } = params;
 
@@ -127,14 +114,9 @@ window.addEventListener('DOMContentLoaded', () => {
             let currentTime = context.currentTime;
             const endTime = currentTime + duration;
 
-            // パルス信号のゲイン設定 (瞬時切り替え)
             while (currentTime < endTime) {
-
-                // ON
                 gainNode.gain.setValueAtTime(gain, currentTime);
                 currentTime += onDuration;
-
-                // OFF
                 gainNode.gain.setValueAtTime(0, currentTime);
                 currentTime += offDuration;
             }
@@ -151,9 +133,6 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /**
-     * 3. AudioBufferをWAV(Blob)に変換する関数 (変更なし)
-     */
     function bufferToWavBlob(buffer) {
         const numOfChan = buffer.numberOfChannels;
         const sampleRate = buffer.sampleRate;
@@ -193,9 +172,6 @@ window.addEventListener('DOMContentLoaded', () => {
         return new Blob([view], { type: 'audio/wav' });
     }
 
-    /**
-     * 4. Blobデータをファイルとしてダウンロードさせる関数 (変更なし)
-     */
     function downloadBlob(blob, filename) {
         const url = URL.createObjectURL(blob);
         downloadLink.href = url;
@@ -206,9 +182,6 @@ window.addEventListener('DOMContentLoaded', () => {
         }, 100);
     }
 
-    /**
-     * ヘルパー関数 (変更なし)
-     */
     function writeString(view, offset, string) {
         for (let i = 0; i < string.length; i++) {
             view.setUint8(offset + i, string.charCodeAt(i));
@@ -218,19 +191,17 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // --- Canvasの高解像度対応と初期設定 ---
 
-    // DPRの取得と設定
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
 
-    // CSSで指定された論理的なサイズを取得 (波形描画に使用)
     const visualWidth = canvas.clientWidth;
     const visualHeight = canvas.clientHeight;
 
 
-    // --- 波形描画関数 ---
+    // --- 波形描画関数 (変更なし) ---
 
     function drawWaveform() {
         const params = getParameters();
@@ -281,7 +252,6 @@ window.addEventListener('DOMContentLoaded', () => {
                 instantaneous_gain = 0;
             }
 
-            // midYを基準に、ゲインと振幅を適用してY座標を計算
             const y = instantaneous_gain * Math.sin(2 * Math.PI * frequency * t);
             const canvasY = midY - (y * midY);
 
@@ -298,7 +268,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // --- イベントリスナー ---
 
-    // 入力値の変更監視
     const inputElementsToWatch = [
         durationInput,
         onDurationInput,
@@ -310,11 +279,41 @@ window.addEventListener('DOMContentLoaded', () => {
 
     inputElementsToWatch.forEach(input => {
         input.addEventListener('input', () => {
+
+            // ▼▼▼ 数値入力のバリデーションと強制 ▼▼▼
+            if (input.type === 'number') {
+                let currentValue = parseFloat(input.value);
+                const minValue = parseFloat(input.min);
+
+                // 値が不正または空の場合、最小値またはデフォルト値に戻す
+                if (isNaN(currentValue) || input.value.trim() === '') {
+                    // 空欄の場合、最小値に戻す (minが設定されている場合)
+                    if (!isNaN(minValue)) {
+                        input.value = minValue;
+                    } else if (input.id === 'offDuration') {
+                        // offDurationはmin=0なので通常minValueでカバーされるが念のため
+                        input.value = 0;
+                    } else {
+                        // それ以外はHTMLのデフォルト値に戻す
+                        input.value = input.defaultValue;
+                    }
+                    currentValue = parseFloat(input.value);
+                }
+
+                // 最小値チェック
+                if (!isNaN(minValue) && currentValue < minValue) {
+                    input.value = minValue;
+                }
+            }
+            // ▲▲▲ 数値入力のバリデーションと強制 ▲▲▲
+
+            // スライダーの値表示の更新
             if (input === gainInput) {
                 gainValueDisplay.textContent = parseFloat(gainInput.value).toFixed(2);
             } else if (input === panInput) {
                 panValueDisplay.textContent = parseFloat(panInput.value).toFixed(2);
             }
+
             drawWaveform();
         });
     });
@@ -328,12 +327,11 @@ window.addEventListener('DOMContentLoaded', () => {
             if (currentOscillator) {
                 currentOscillator.stop();
             }
-            // onendedコールバックで resetUI が呼ばれるのを待つ
         } else {
             // ▼ 再生処理 ▼
             const params = getParameters();
 
-            // バリデーション
+            // バリデーション (入力値の空欄防止はinputイベントで対応済みだが、最終チェック)
             if (isNaN(params.duration) || params.duration <= 0) { alert("全体の長さを正しく入力してください。"); return; }
             if (isNaN(params.onDuration) || params.onDuration <= 0) { alert("音が鳴る時間を正しく入力してください。"); return; }
             if (isNaN(params.offDuration) || params.offDuration < 0) { alert("無音の時間を正しく入力してください。"); return; }
@@ -342,11 +340,11 @@ window.addEventListener('DOMContentLoaded', () => {
             if (isNaN(params.pan) || params.pan < -1 || params.pan > 1) { alert("パンは-1から1の間で入力してください。"); return; }
 
             isPlaying = true;
-            previewButton.textContent = '停止'; // ボタンのテキストを「停止」に変更
-            previewButton.style.backgroundColor = '#dc3545'; // 停止ボタンの色
+            previewButton.textContent = '停止';
+            previewButton.style.backgroundColor = '#dc3545';
 
             playSineWave(params)
-                .then(resetUI) // 再生完了時にUIをリセット
+                .then(resetUI)
                 .catch(error => {
                     console.error("再生エラー:", error);
                     resetUI();
@@ -355,17 +353,14 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
     /**
-     * 「生成ボタン」がクリックされたときの処理
-     * 注: HTMLの構造変更により、ボタン自体に直接リスナーを設定しています
+     * 「ダウンロード」ボタンがクリックされたときの処理
      */
     generateButton.addEventListener('click', async () => {
-
-        // 再生中は生成ボタンを無効化しても良いですが、今回は単純に処理を進めます
 
         const params = getParameters();
         const { duration, onDuration, offDuration, frequency, gain, pan } = params;
 
-        // バリデーション 
+        // バリデーション (最終チェック)
         if (isNaN(duration) || duration <= 0) { alert("全体の長さを正しく入力してください。"); return; }
         if (isNaN(onDuration) || onDuration <= 0) { alert("音が鳴る時間を正しく入力してください。"); return; }
         if (isNaN(offDuration) || offDuration < 0) { alert("無音の時間を正しく入力してください。"); return; }
@@ -399,7 +394,7 @@ window.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error("WAVの生成に失敗しました:", error);
             alert("エラーが発生しました。コンソールを確認してください。");
-            generateButton.textContent = "WAVを生成してダウンロード";
+            generateButton.textContent = "ダウンロード";
             generateButton.disabled = false;
         }
     });
