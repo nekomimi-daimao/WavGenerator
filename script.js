@@ -1,71 +1,70 @@
 window.addEventListener('DOMContentLoaded', () => {
 
-    // HTML要素を取得
+    // HTML要素を取得 (パン関連を追加)
     const durationInput = document.getElementById('duration');
     const frequencyInput = document.getElementById('frequency');
     const gainInput = document.getElementById('gain');
     const gainValueDisplay = document.getElementById('gainValue');
+    const panInput = document.getElementById('pan');           // 追加
+    const panValueDisplay = document.getElementById('panValue'); // 追加
+
     const generateButton = document.getElementById('generateButton');
     const downloadLink = document.getElementById('downloadLink');
-
-    // (追加) Canvas関連
     const canvas = document.getElementById('waveformCanvas');
     const ctx = canvas.getContext('2d');
 
-    // (追加) 高解像度ディスプレイ対応 (Retinaなど)
-    // Canvasの描画バッファサイズを、表示サイズ（CSS）の2倍（またはデバイス比率）にする
+    // (Canvasの高解像度対応 ... 変更なし)
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr); // コンテキストのスケールを調整
-    // ※CSSでCanvasの表示サイズ (width: 100%, height: 100px) を指定しているため、
-    //   この処理で描画がボケるのを防ぎます。
-
+    ctx.scale(dpr, dpr);
 
     // --- イベントリスナー ---
 
-    // (変更) スライダーを操作したら、値表示を更新し、波形を描画
+    // ゲインスライダー
     gainInput.addEventListener('input', () => {
         gainValueDisplay.textContent = parseFloat(gainInput.value).toFixed(2);
-        drawWaveform(); // 描画関数を呼び出し
+        drawWaveform();
     });
 
-    // (追加) 周波数が変更されたら波形を描画
+    // 周波数
     frequencyInput.addEventListener('input', () => {
-        drawWaveform(); // 描画関数を呼び出し
+        drawWaveform();
     });
 
-    // (追加) 再生長さの変更は波形表示には影響しませんが、念のため
-    durationInput.addEventListener('input', () => {
-        // 現在の実装では再生長さは波形プレビューに影響しない
-        // もし将来的に影響させるなら、ここでも drawWaveform() を呼ぶ
+    // (追加) パンスライダー
+    panInput.addEventListener('input', () => {
+        panValueDisplay.textContent = parseFloat(panInput.value).toFixed(2);
+        // パンは波形プレビューには反映させない（プレビューはモノラルのため）
     });
 
     // 「生成ボタン」がクリックされたときの処理
     generateButton.addEventListener('click', async () => {
 
-        // 1. パラメータの取得
+        // 1. パラメータの取得 (パンを追加)
         const duration = parseFloat(durationInput.value);
         const frequency = parseFloat(frequencyInput.value);
         const gain = parseFloat(gainInput.value);
+        const pan = parseFloat(panInput.value); // 追加
 
-        // (バリデーションは省略...前回と同じ)
+        // (バリデーション ... 省略)
         if (isNaN(duration) || duration <= 0) { /*...*/ return; }
         if (isNaN(frequency) || frequency <= 0) { /*...*/ return; }
         if (isNaN(gain) || gain < 0 || gain > 1) { /*...*/ return; }
+        if (isNaN(pan) || pan < -1 || pan > 1) { /*...*/ return; } // 追加
 
-        console.log(`生成開始: ${duration}秒, ${frequency}Hz, ゲイン ${gain}`);
+        console.log(`生成開始: ${duration}秒, ${frequency}Hz, ゲイン ${gain}, パン ${pan}`);
 
         try {
-            // 2. サイン波のオーディオバッファを生成
-            const audioBuffer = await createSineWaveBuffer(duration, frequency, gain);
+            // 2. オーディオバッファを生成 (引数にpanを追加)
+            const audioBuffer = await createSineWaveBuffer(duration, frequency, gain, pan);
 
-            // 3. AudioBufferをWAVファイルのBlobに変換
+            // 3. AudioBufferをWAV(Blob)に変換 (ステレオ対応版)
             const wavBlob = bufferToWavBlob(audioBuffer);
 
             // 4. Blobをダウンロード
-            const filename = `sine_${frequency}Hz_${duration}s.wav`;
+            const filename = `sine_${frequency}Hz_${duration}s_pan${pan.toFixed(1)}.wav`;
             downloadBlob(wavBlob, filename);
 
             console.log("生成完了");
@@ -79,55 +78,34 @@ window.addEventListener('DOMContentLoaded', () => {
     // --- 関数定義 ---
 
     /**
-     * (追加) 波形をCanvasに描画する関数
+     * (追加) 波形をCanvasに描画する関数 (変更なし)
      */
     function drawWaveform() {
-        // 現在のパラメータを取得
+        // (前回と同じコード...省略)
         const frequency = parseFloat(frequencyInput.value) || 440;
         const gain = parseFloat(gainInput.value) || 0;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const midY = height / 2;
 
-        // Canvasのサイズ情報を取得 (CSSで指定した表示サイズ)
-        const width = canvas.clientWidth; // 表示上の幅
-        const height = canvas.clientHeight; // 表示上の高さ
-        const midY = height / 2; // Y軸の中央
-
-        // 描画をクリア
-        // (scale()を考慮し、バッファサイズ(canvas.width)でクリア)
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // --- 1. 中央線（ゼロ振幅）を描画 ---
+        // 中央線
         ctx.beginPath();
-        ctx.strokeStyle = '#ccc'; // 薄いグレー
+        ctx.strokeStyle = '#ccc';
         ctx.lineWidth = 1;
         ctx.moveTo(0, midY);
         ctx.lineTo(width, midY);
         ctx.stroke();
-
-        // --- 2. サイン波を描画 ---
+        // サイン波
         ctx.beginPath();
-        ctx.strokeStyle = '#007bff'; // ボタンと同じ青色
-        ctx.lineWidth = 2; // 少し太く
-
-        // Canvasの幅に表示する秒数を決定
-        // (周波数が高いほど短くしないと潰れるが、ここでは固定値にする)
-        // 440Hzの場合、0.01秒で約4.4周期。
-        const timeRange = 0.02; // 0.02秒間をCanvas全体に描画
-
+        ctx.strokeStyle = '#007bff';
+        ctx.lineWidth = 2;
+        const timeRange = 0.02;
         let firstPoint = true;
-
         for (let x = 0; x <= width; x++) {
-            // 現在のxピクセル位置を時間(t)に変換
             const t = (x / width) * timeRange;
-
-            // サイン波の振幅yを計算 (値の範囲: -gain ～ +gain)
             const y = gain * Math.sin(2 * Math.PI * frequency * t);
-
-            // 振幅yをCanvasのY座標に変換
-            // (y = 0 が midY になるようにする)
-            // (y = +gain が 0 に、 y = -gain が height に近づくように)
-            // (y * midY) で、ゲインに応じた振幅を計算
             const canvasY = midY - (y * midY);
-
             if (firstPoint) {
                 ctx.moveTo(x, canvasY);
                 firstPoint = false;
@@ -135,69 +113,114 @@ window.addEventListener('DOMContentLoaded', () => {
                 ctx.lineTo(x, canvasY);
             }
         }
-        ctx.stroke(); // 線を描画
+        ctx.stroke();
     }
 
 
-    /*
-     * 2. createSineWaveBuffer 関数 (変更なし)
+    /**
+     * 2. オーディオバッファを生成する関数 (ステレオ化 + Panner追加)
+     * @param {number} duration - 秒数
+     * @param {number} frequency - 周波数 (Hz)
+     * @param {number} gain - 音量 (0.0 ～ 1.0)
+     * @param {number} pan - パン (-1.0 ～ 1.0)
+     * @returns {Promise<AudioBuffer>} 生成されたAudioBuffer
      */
-    function createSineWaveBuffer(duration, frequency, gain) {
-        // (前回と同じコード...省略)
+    function createSineWaveBuffer(duration, frequency, gain, pan) {
         const sampleRate = 44100;
         const totalSamples = Math.floor(sampleRate * duration);
-        const audioContext = new OfflineAudioContext(1, totalSamples, sampleRate);
 
+        // (変更) チャンネル数を 1 (モノラル) -> 2 (ステレオ) に変更
+        const audioContext = new OfflineAudioContext(
+            2,            // 2: ステレオ (チャンネル数)
+            totalSamples, // 合計サンプルフレーム数
+            sampleRate    // サンプルレート
+        );
+
+        // オシレーター (サイン波の元)
         const oscillator = audioContext.createOscillator();
         oscillator.type = 'sine';
         oscillator.frequency.setValueAtTime(frequency, 0);
 
+        // ゲインノード (音量)
         const gainNode = audioContext.createGain();
         gainNode.gain.setValueAtTime(gain, 0);
 
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
+        // (追加) パンナーノード (左右)
+        const pannerNode = audioContext.createStereoPanner();
+        pannerNode.pan.setValueAtTime(pan, 0); // 引数のパンを設定
 
+        // ノードの接続を変更
+        // [オシレーター] -> [ゲイン] -> [パンナー] -> [最終出力]
+        oscillator.connect(gainNode);
+        gainNode.connect(pannerNode);
+        pannerNode.connect(audioContext.destination);
+
+        // 開始・停止
         oscillator.start(0);
         oscillator.stop(duration);
 
         return audioContext.startRendering();
     }
 
-    /*
-     * 3. bufferToWavBlob 関数 (変更なし)
+    /**
+     * 3. AudioBufferをWAV(Blob)に変換する関数 (ステレオ対応版)
+     * @param {AudioBuffer} buffer - 変換元のAudioBuffer (ステレオ前提)
+     * @returns {Blob} WAV形式のBlobオブジェクト
      */
     function bufferToWavBlob(buffer) {
-        // (前回と同じコード...省略)
+        // (変更) チャンネル数を取得 (2になるはず)
         const numOfChan = buffer.numberOfChannels;
         const sampleRate = buffer.sampleRate;
         const bitsPerSample = 16;
         const bytesPerSample = bitsPerSample / 8;
-        const pcmData = buffer.getChannelData(0);
-        const dataSize = pcmData.length * bytesPerSample;
+
+        // (変更) 左右両方のチャンネルのPCMデータを取得
+        const pcmDataL = buffer.getChannelData(0); // 左チャンネル
+        const pcmDataR = buffer.getChannelData(1); // 右チャンネル
+        const dataLength = pcmDataL.length; // 左右の長さは同じ
+
+        // (変更) データサイズは 左右の合計になる
+        // (サンプル数 * チャンネル数 * 1サンプルあたりのバイト数)
+        const dataSize = dataLength * numOfChan * bytesPerSample;
+
         const bufferSize = 44 + dataSize;
         const arrayBuffer = new ArrayBuffer(bufferSize);
         const view = new DataView(arrayBuffer);
+
+        // --- WAVヘッダ (チャンネル数やデータ速度がステレオ用に自動計算される) ---
         writeString(view, 0, 'RIFF');
         view.setUint32(4, bufferSize - 8, true);
         writeString(view, 8, 'WAVE');
         writeString(view, 12, 'fmt ');
         view.setUint32(16, 16, true);
         view.setUint16(20, 1, true);
-        view.setUint16(22, numOfChan, true);
+        view.setUint16(22, numOfChan, true); // 2 が入る
         view.setUint32(24, sampleRate, true);
+        // (変更) データ速度 (ステレオ用に自動計算)
         view.setUint32(28, sampleRate * numOfChan * bytesPerSample, true);
+        // (変更) ブロックサイズ (ステレオ用に自動計算)
         view.setUint16(32, numOfChan * bytesPerSample, true);
         view.setUint16(34, bitsPerSample, true);
         writeString(view, 36, 'data');
         view.setUint32(40, dataSize, true);
+
+        // --- PCMデータを書き込む (変更) ---
+        // ステレオWAVは、[L, R, L, R, L, R, ...] の順 (インターリーブ) で書き込む
         let offset = 44;
-        for (let i = 0; i < pcmData.length; i++) {
-            const s = Math.max(-1, Math.min(1, pcmData[i]));
-            const val = s < 0 ? s * 0x8000 : s * 0x7FFF;
-            view.setInt16(offset, val, true);
+        for (let i = 0; i < dataLength; i++) {
+            // 左チャンネルのサンプル
+            let sL = Math.max(-1, Math.min(1, pcmDataL[i]));
+            let valL = sL < 0 ? sL * 0x8000 : sL * 0x7FFF;
+            view.setInt16(offset, valL, true);
+            offset += bytesPerSample;
+
+            // 右チャンネルのサンプル
+            let sR = Math.max(-1, Math.min(1, pcmDataR[i]));
+            let valR = sR < 0 ? sR * 0x8000 : sR * 0x7FFF;
+            view.setInt16(offset, valR, true);
             offset += bytesPerSample;
         }
+
         return new Blob([view], { type: 'audio/wav' });
     }
 
@@ -225,9 +248,8 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
     // --- 初期化 ---
-    // (追加) ページ読み込み時に、現在のデフォルト値で波形を一度描画する
-    drawWaveform();
-
+    drawWaveform(); // 起動時に波形描画
+    // (追加) 起動時にパンの初期値を表示
+    panValueDisplay.textContent = parseFloat(panInput.value).toFixed(2);
 });

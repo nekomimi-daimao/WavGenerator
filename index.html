@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WAVジェネレーター</title>
     <style>
-        /* (CSSは変更ありません ... 省略) */
+        /* (前回のCSSと同じ...省略) */
         body {
             font-family: sans-serif;
             padding: 20px;
@@ -37,14 +37,14 @@
             padding-left: 0;
             padding-right: 0;
         }
-        .gain-display {
+        .value-display {
             font-size: 0.9em;
             color: #555;
             text-align: right;
         }
 
         .waveform-container {
-            margin-bottom: 20px; /* 下の要素とのマージンを調整 */
+            margin-bottom: 20px;
             border: 1px solid #ddd;
             background-color: #fafafa;
             border-radius: 4px;
@@ -55,10 +55,12 @@
             height: 100px;
         }
 
+        /* ▼▼▼ ボタンのデザインを再設定 ▼▼▼ */
         button {
             display: block;
             width: 100%;
             padding: 10px;
+            /* 以前の青色に戻しました */
             background-color: #007bff;
             color: white;
             border: none;
@@ -67,11 +69,12 @@
             font-size: 16px;
         }
         button:hover {
+            /* ホバー時の色も以前のものに戻しました */
             background-color: #0056b3;
         }
-        #downloadLink {
-            display: none;
-        }
+        /* ▲▲▲ ボタンのデザインを再設定 ▲▲▲ */
+
+        #downloadLink { display: none; }
     </style>
 </head>
 <body>
@@ -82,6 +85,7 @@
     <div class="waveform-container">
         <canvas id="waveformCanvas"></canvas>
     </div>
+
     <div class="control-group">
         <label for="duration">再生の長さ（秒）:</label>
         <input type="number" id="duration" value="3" min="0.1" step="0.1">
@@ -95,8 +99,17 @@
     <div class="control-group">
         <label for="gain">音量（ゲイン）:</label>
         <input type="range" id="gain" value="0.5" min="0" max="1" step="0.01">
-        <div class="gain-display">
+        <div class="value-display">
             （現在値: <span id="gainValue">0.50</span>）
+        </div>
+    </div>
+
+    <div class="control-group">
+        <label for="pan">左右（パン）:</label>
+        <input type="range" id="pan" value="0" min="-1" max="1" step="0.01">
+        <div class="value-display">
+            （左: -1.00, 中央: 0.00, 右: +1.00）<br>
+            現在値: <span id="panValue">0.00</span>
         </div>
     </div>
 
