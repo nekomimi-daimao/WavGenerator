@@ -30,19 +30,19 @@
         .slider-row {
             display: flex;
             align-items: center;
-            gap: 10px; /* スライダーと値の間のスペース */
+            gap: 10px;
         }
         .slider-row input[type="range"] {
-            flex-grow: 1; /* スライダーを最大限に広げる */
-            width: auto; /* width: 100% を上書き */
+            flex-grow: 1;
+            width: auto;
         }
         /* 値表示のスタイルを調整 */
         .value-display-inline {
             font-size: 0.9em;
             color: #555;
-            min-width: 60px; /* 値表示の幅を確保 */
+            min-width: 60px;
             text-align: right;
-            line-height: 1; /* 行の高さを調整 */
+            line-height: 1;
         }
 
         input[type="number"],
@@ -55,7 +55,11 @@
             padding-left: 0;
             padding-right: 0;
         }
-        /* value-display クラスは使用しなくなりました */
+        .value-display {
+            font-size: 0.9em;
+            color: #555;
+            text-align: right;
+        }
 
         .waveform-container {
             margin-bottom: 20px;
@@ -66,9 +70,7 @@
         canvas {
             display: block;
             width: 100%;
-            /* ▼▼▼ Canvasの高さを100pxに戻す ▼▼▼ */
             height: 100px;
-            /* ▲▲▲ 修正箇所 ▲▲▲ */
         }
 
         /* パルス時間の設定を一行にするためのCSS */
@@ -85,6 +87,17 @@
             font-weight: normal;
         }
 
+        /* ボタン群のスタイル */
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .button-group button {
+            flex: 1;
+            width: auto;
+        }
+
         button {
             display: block;
             width: 100%;
@@ -99,6 +112,20 @@
         button:hover {
             background-color: #0056b3;
         }
+
+        #previewButton {
+            background-color: #28a745;
+        }
+        #previewButton:hover {
+            background-color: #1e7e34;
+        }
+        #stopButton {
+            background-color: #dc3545;
+        }
+        #stopButton:hover {
+            background-color: #bd2130;
+        }
+
         #downloadLink { display: none; }
     </style>
 </head>
@@ -156,6 +183,12 @@
             （左: -1.00, 中央: 0.00, 右: +1.00）
         </div>
     </div>
+
+    <div class="button-group">
+        <button id="previewButton">プレビュー再生</button>
+        <button id="stopButton" disabled>停止</button>
+    </div>
+
     <button id="generateButton">WAVを生成してダウンロード</button>
 
     <a id="downloadLink"></a>
