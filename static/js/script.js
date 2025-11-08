@@ -11,7 +11,6 @@ window.addEventListener('DOMContentLoaded', () => {
     const panValueDisplay = document.getElementById('panValue');
 
     const previewButton = document.getElementById('previewButton');
-    const stopButton = document.getElementById('stopButton');
     const generateButton = document.getElementById('generateButton');
     const downloadLink = document.getElementById('downloadLink');
     const canvas = document.getElementById('waveformCanvas');
@@ -31,12 +30,16 @@ window.addEventListener('DOMContentLoaded', () => {
         return audioContext;
     }
 
+    /**
+     * UIを初期状態（停止状態）に戻す
+     */
     function resetUI() {
         isPlaying = false;
         currentOscillator = null;
         previewButton.textContent = 'プレビュー再生';
         previewButton.disabled = false;
-        stopButton.disabled = true;
+        // 停止ボタンの色を再生ボタンの色に戻す
+        previewButton.style.backgroundColor = '#28a745';
     }
 
     /**
@@ -57,7 +60,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     /**
      * 2-A. オーディオバッファを生成する関数 (WAVダウンロード用)
-     * ゲイン設定を setValueAtTime に戻す
+     * ゲイン設定を setValueAtTime (瞬時切り替え)
      */
     function createSineWaveBuffer(params) {
         const { duration, onDuration, offDuration, frequency, gain, pan } = params;
@@ -69,7 +72,7 @@ window.addEventListener('DOMContentLoaded', () => {
         oscillator.type = 'sine';
         oscillator.frequency.setValueAtTime(frequency, 0);
         const gainNode = audioContext.createGain();
-        gainNode.gain.setValueAtTime(0, 0); // 初期ゲインは0
+        gainNode.gain.setValueAtTime(0, 0);
         const pannerNode = audioContext.createStereoPanner();
         pannerNode.pan.setValueAtTime(pan, 0);
         oscillator.connect(gainNode);
@@ -97,7 +100,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     /**
      * 2-B. サイン波をリアルタイムで再生する関数 (プレビュー用)
-     * ゲイン設定を setValueAtTime に戻す
+     * ゲイン設定を setValueAtTime (瞬時切り替え)
      */
     function playSineWave(params) {
         const { duration, onDuration, offDuration, frequency, gain, pan } = params;
@@ -140,7 +143,6 @@ window.addEventListener('DOMContentLoaded', () => {
             oscillator.stop(context.currentTime + duration);
 
             oscillator.onended = () => {
-                // クリーンアップ
                 oscillator.disconnect();
                 gainNode.disconnect();
                 pannerNode.disconnect();
@@ -223,27 +225,22 @@ window.addEventListener('DOMContentLoaded', () => {
     canvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
 
-    // CSSで指定された論理的なサイズを取得
+    // CSSで指定された論理的なサイズを取得 (波形描画に使用)
     const visualWidth = canvas.clientWidth;
     const visualHeight = canvas.clientHeight;
 
 
     // --- 波形描画関数 ---
 
-    /**
-     * 波形をCanvasに描画する関数
-     */
     function drawWaveform() {
         const params = getParameters();
         const { frequency, gain, onDuration, offDuration } = params;
         const period = onDuration + offDuration;
 
-        // ★ 描画にはCSSサイズを使用 (visualWidth, visualHeight) ★
         const width = visualWidth;
         const height = visualHeight;
         const midY = height / 2;
 
-        // DPRを設定しているため、clearRectはキャンバスの物理的なサイズで行う
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // 中心線
@@ -299,8 +296,9 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- イベントリスナーの再設定 ---
+    // --- イベントリスナー ---
 
+    // 入力値の変更監視
     const inputElementsToWatch = [
         durationInput,
         onDurationInput,
@@ -321,44 +319,48 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 「プレビュー再生」ボタンの処理
+    /**
+     * 「プレビュー再生/停止」ボタンの処理 (統合ロジック)
+     */
     previewButton.addEventListener('click', () => {
         if (isPlaying) {
-            return;
-        }
+            // ▼ 停止処理 ▼
+            if (currentOscillator) {
+                currentOscillator.stop();
+            }
+            // onendedコールバックで resetUI が呼ばれるのを待つ
+        } else {
+            // ▼ 再生処理 ▼
+            const params = getParameters();
 
-        const params = getParameters();
+            // バリデーション
+            if (isNaN(params.duration) || params.duration <= 0) { alert("全体の長さを正しく入力してください。"); return; }
+            if (isNaN(params.onDuration) || params.onDuration <= 0) { alert("音が鳴る時間を正しく入力してください。"); return; }
+            if (isNaN(params.offDuration) || params.offDuration < 0) { alert("無音の時間を正しく入力してください。"); return; }
+            if (isNaN(params.frequency) || params.frequency <= 0) { alert("周波数を正しく入力してください。"); return; }
+            if (isNaN(params.gain) || params.gain < 0 || params.gain > 1) { alert("ゲインは0から1の間で入力してください。"); return; }
+            if (isNaN(params.pan) || params.pan < -1 || params.pan > 1) { alert("パンは-1から1の間で入力してください。"); return; }
 
-        // バリデーション
-        if (isNaN(params.duration) || params.duration <= 0) { alert("全体の長さを正しく入力してください。"); return; }
-        if (isNaN(params.onDuration) || params.onDuration <= 0) { alert("音が鳴る時間を正しく入力してください。"); return; }
-        if (isNaN(params.offDuration) || params.offDuration < 0) { alert("無音の時間を正しく入力してください。"); return; }
-        if (isNaN(params.frequency) || params.frequency <= 0) { alert("周波数を正しく入力してください。"); return; }
-        if (isNaN(params.gain) || params.gain < 0 || params.gain > 1) { alert("ゲインは0から1の間で入力してください。"); return; }
-        if (isNaN(params.pan) || params.pan < -1 || params.pan > 1) { alert("パンは-1から1の間で入力してください。"); return; }
+            isPlaying = true;
+            previewButton.textContent = '停止'; // ボタンのテキストを「停止」に変更
+            previewButton.style.backgroundColor = '#dc3545'; // 停止ボタンの色
 
-        isPlaying = true;
-        previewButton.textContent = '再生中...';
-        previewButton.disabled = true;
-        stopButton.disabled = false;
-
-        playSineWave(params)
-            .then(resetUI)
-            .catch(error => {
-                console.error("再生エラー:", error);
-                resetUI();
-            });
-    });
-
-    // 「停止」ボタンの処理
-    stopButton.addEventListener('click', () => {
-        if (currentOscillator) {
-            currentOscillator.stop();
+            playSineWave(params)
+                .then(resetUI) // 再生完了時にUIをリセット
+                .catch(error => {
+                    console.error("再生エラー:", error);
+                    resetUI();
+                });
         }
     });
 
-    // 「生成ボタン」がクリックされたときの処理
+    /**
+     * 「生成ボタン」がクリックされたときの処理
+     * 注: HTMLの構造変更により、ボタン自体に直接リスナーを設定しています
+     */
     generateButton.addEventListener('click', async () => {
+
+        // 再生中は生成ボタンを無効化しても良いですが、今回は単純に処理を進めます
 
         const params = getParameters();
         const { duration, onDuration, offDuration, frequency, gain, pan } = params;
@@ -372,10 +374,11 @@ window.addEventListener('DOMContentLoaded', () => {
         if (isNaN(pan) || pan < -1 || pan > 1) { alert("パンは-1から1の間で入力してください。"); return; }
 
         try {
-            // 2. オーディオバッファを生成 (パラメータオブジェクトを渡す)
-            const audioBuffer = await createSineWaveBuffer(params);
+            const originalText = generateButton.textContent;
+            generateButton.textContent = "生成中...";
+            generateButton.disabled = true;
 
-            // 3. AudioBufferをWAV(Blob)に変換
+            const audioBuffer = await createSineWaveBuffer(params);
             const wavBlob = bufferToWavBlob(audioBuffer);
 
             // ファイル名生成ロジック
@@ -387,13 +390,17 @@ window.addEventListener('DOMContentLoaded', () => {
             const offLabel = offDuration.toFixed(0);
             const filename = `Dur${durLabel}_ON${onLabel}_OFF${offLabel}_Freq${freqLabel}_Gain${gainLabel}_Pan${panLabel}.wav`;
 
-            // 4. Blobをダウンロード
             downloadBlob(wavBlob, filename);
             console.log(`生成完了: ${filename}`);
+
+            generateButton.textContent = originalText;
+            generateButton.disabled = false;
 
         } catch (error) {
             console.error("WAVの生成に失敗しました:", error);
             alert("エラーが発生しました。コンソールを確認してください。");
+            generateButton.textContent = "WAVを生成してダウンロード";
+            generateButton.disabled = false;
         }
     });
 

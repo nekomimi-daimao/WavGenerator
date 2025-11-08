@@ -87,17 +87,19 @@
             font-weight: normal;
         }
 
-        /* ボタン群のスタイル */
+        /* ボタン群のスタイル - 横並びと均等幅を適用 */
         .button-group {
-            display: flex;
+            display: flex; /* Flexboxを有効にする */
             gap: 10px;
             margin-bottom: 10px;
         }
+        /* button-group内のボタンに flex: 1 を適用し、均等な幅にする */
         .button-group button {
             flex: 1;
             width: auto;
         }
 
+        /* 基本ボタンのスタイル */
         button {
             display: block;
             width: 100%;
@@ -113,17 +115,20 @@
             background-color: #0056b3;
         }
 
+        /* プレビューボタンのデフォルト色 */
         #previewButton {
             background-color: #28a745;
         }
         #previewButton:hover {
             background-color: #1e7e34;
         }
-        #stopButton {
-            background-color: #dc3545;
+
+        /* 生成ボタンの色 */
+        #generateButton {
+            background-color: #007bff; /* 元の青を維持 */
         }
-        #stopButton:hover {
-            background-color: #bd2130;
+        #generateButton:hover {
+            background-color: #0056b3;
         }
 
         #downloadLink { display: none; }
@@ -187,11 +192,8 @@
 
     <div class="button-group">
         <button id="previewButton">プレビュー再生</button>
-        <button id="stopButton" disabled>停止</button>
+        <button id="generateButton">ダウンロード</button>
     </div>
-
-    <button id="generateButton">WAVを生成してダウンロード</button>
-
     <a id="downloadLink"></a>
 </div>
 
