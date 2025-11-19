@@ -20,6 +20,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let audioContext = null;
     let isPlaying = false;
     let currentOscillator = null;
+    // currentGainNode, currentPannerNode は削除し、元の状態に戻しました
 
     // --- ヘルパー関数 ---
 
@@ -35,6 +36,15 @@ window.addEventListener('DOMContentLoaded', () => {
      */
     function resetUI() {
         isPlaying = false;
+        if (currentOscillator) {
+            // 安全のため、オシレーターが残っていたら接続を解除
+            try {
+                currentOscillator.stop(0); // 既に停止していてもエラーにならないように
+                currentOscillator.disconnect();
+            } catch (e) {
+                // 停止済みの場合のエラーを無視
+            }
+        }
         currentOscillator = null;
         previewButton.textContent = 'プレビュー再生';
         previewButton.disabled = false;
@@ -55,7 +65,7 @@ window.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // --- AudioContext/WAV関連の関数 (変更なし) ---
+    // --- AudioContext/WAV関連の関数 (元の状態に戻しました) ---
 
     function createSineWaveBuffer(params) {
         const { duration, onDuration, offDuration, frequency, gain, pan } = params;
@@ -99,6 +109,7 @@ window.addEventListener('DOMContentLoaded', () => {
             oscillator.frequency.setValueAtTime(frequency, 0);
 
             const gainNode = context.createGain();
+            // playSineWave内のゲイン設定は元の状態に戻しました
             gainNode.gain.setValueAtTime(0, context.currentTime);
 
             const pannerNode = context.createStereoPanner();
@@ -108,7 +119,7 @@ window.addEventListener('DOMContentLoaded', () => {
             gainNode.connect(pannerNode);
             pannerNode.connect(context.destination);
 
-            currentOscillator = oscillator;
+            currentOscillator = oscillator; // オシレーターのみグローバルに保持
 
             let currentTime = context.currentTime;
             const endTime = currentTime + duration;
@@ -132,62 +143,10 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function bufferToWavBlob(buffer) {
-        const numOfChan = buffer.numberOfChannels;
-        const sampleRate = buffer.sampleRate;
-        const bitsPerSample = 16;
-        const bytesPerSample = bitsPerSample / 8;
-        const pcmDataL = buffer.getChannelData(0);
-        const pcmDataR = buffer.getChannelData(1);
-        const dataLength = pcmDataL.length;
-        const dataSize = dataLength * numOfChan * bytesPerSample;
-        const bufferSize = 44 + dataSize;
-        const arrayBuffer = new ArrayBuffer(bufferSize);
-        const view = new DataView(arrayBuffer);
-        writeString(view, 0, 'RIFF');
-        view.setUint32(4, bufferSize - 8, true);
-        writeString(view, 8, 'WAVE');
-        writeString(view, 12, 'fmt ');
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true);
-        view.setUint16(22, numOfChan, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, sampleRate * numOfChan * bytesPerSample, true);
-        view.setUint16(32, numOfChan * bytesPerSample, true);
-        view.setUint16(34, bitsPerSample, true);
-        writeString(view, 36, 'data');
-        view.setUint32(40, dataSize, true);
-        let offset = 44;
-        for (let i = 0; i < dataLength; i++) {
-            let sL = Math.max(-1, Math.min(1, pcmDataL[i]));
-            let valL = sL < 0 ? sL * 0x8000 : sL * 0x7FFF;
-            view.setInt16(offset, valL, true);
-            offset += bytesPerSample;
-            let sR = Math.max(-1, Math.min(1, pcmDataR[i]));
-            let valR = sR < 0 ? sR * 0x8000 : sR * 0x7FFF;
-            view.setInt16(offset, valR, true);
-            offset += bytesPerSample;
-        }
-        return new Blob([view], { type: 'audio/wav' });
-    }
-
-    function downloadBlob(blob, filename) {
-        const url = URL.createObjectURL(blob);
-        downloadLink.href = url;
-        downloadLink.download = filename;
-        setTimeout(() => {
-            URL.revokeObjectURL(url);
-        }, 100);
-    }
-
-    function writeString(view, offset, string) {
-        for (let i = 0; i < string.length; i++) {
-            view.setUint8(offset + i, string.charCodeAt(i));
-        }
-    }
+    // --- Audio Paramatersの即時更新関数 (削除しました) ---
 
 
-    // --- Canvasの高解像度対応と初期設定 (変更なし) ---
+    // --- 波形描画関数 (省略) ---
 
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
@@ -262,9 +221,10 @@ window.addEventListener('DOMContentLoaded', () => {
 
     inputElementsToWatch.forEach(input => {
 
-        // 1. inputイベント: リアルタイムフィードバック (波形描画とスライダー表示の更新)
+        // 1. inputイベント: リアルタイムフィードバック + 再生停止ロジックを追加
         input.addEventListener('input', () => {
 
+            // スライダーの値表示の更新
             if (input === gainInput) {
                 gainValueDisplay.textContent = parseFloat(gainInput.value).toFixed(2);
             } else if (input === panInput) {
@@ -272,42 +232,55 @@ window.addEventListener('DOMContentLoaded', () => {
             }
 
             drawWaveform();
+
+            // ★ プレビュー再生中の場合、即座に停止する ★
+            if (isPlaying) {
+                if (currentOscillator) {
+                    currentOscillator.stop();
+                    // currentOscillatorのonendedハンドラがresetUIを呼ぶため、ここでisPlaying=falseは設定しない
+                }
+            }
         });
 
         // 2. changeイベント: 値が確定したとき（フォーカスが外れたとき）にバリデーションと修正を実行
-        if (input.type === 'number') {
+        if (input.type === 'number' || input === gainInput || input === panInput) {
             input.addEventListener('change', () => {
-                let currentValue = parseFloat(input.value);
-                const minValue = parseFloat(input.min);
-                // デフォルト値を取得
-                const defaultValue = input.defaultValue;
 
-                let needsCorrection = false;
+                // 数値入力フィールドのみバリデーションとゼロ除去を行う
+                if (input.type === 'number') {
+                    let currentValue = parseFloat(input.value);
+                    const minValue = parseFloat(input.min);
+                    const defaultValue = input.defaultValue;
 
-                // A. 値が不正または空の場合
-                if (isNaN(currentValue) || input.value.trim() === '') {
-                    needsCorrection = true;
-                }
+                    let needsCorrection = false;
 
-                // B. 最小値チェック (最小値を下回っている場合)
-                if (!isNaN(minValue) && currentValue < minValue) {
-                    needsCorrection = true;
-                }
+                    if (isNaN(currentValue) || input.value.trim() === '') {
+                        needsCorrection = true;
+                    }
 
-                if (needsCorrection) {
-                    // 最小値ではなく、デフォルト値に戻す
-                    input.value = defaultValue;
-                    currentValue = parseFloat(defaultValue);
-                }
+                    if (!isNaN(minValue) && currentValue < minValue) {
+                        needsCorrection = true;
+                    }
 
-                // C. 先頭ゼロの除去
-                if (!isNaN(currentValue)) {
-                    // parseFloat()で数値に変換して再び文字列にすることで、先頭の不要なゼロが除去される
-                    input.value = currentValue.toString();
+                    if (needsCorrection) {
+                        input.value = defaultValue;
+                        currentValue = parseFloat(defaultValue);
+                    }
+
+                    if (!isNaN(currentValue)) {
+                        input.value = currentValue.toString();
+                    }
                 }
 
                 // 値が修正された可能性があるため、波形を再描画
                 drawWaveform();
+
+                // changeイベントでも再生中なら停止 (手入力してEnterを押した場合など)
+                if (isPlaying) {
+                    if (currentOscillator) {
+                        currentOscillator.stop();
+                    }
+                }
             });
         }
     });
@@ -352,7 +325,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
     /**
-     * 「ダウンロード」ボタンがクリックされたときの処理
+     * 「ダウンロード」ボタンがクリックされたときの処理 (変更なし)
      */
     generateButton.addEventListener('click', async () => {
 
