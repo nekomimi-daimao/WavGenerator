@@ -67,7 +67,7 @@
 2.  開発サーバーを起動します。
     ```bash
     # ポート4410で起動
-    deno run --allow-net --allow-read --watch serve.js
+    deno --allow-net --allow-read --watch=./doc serve.js
     ```
 3.  ブラウザでアクセスします。
     ```
