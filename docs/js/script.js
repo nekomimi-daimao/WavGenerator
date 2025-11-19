@@ -20,7 +20,6 @@ window.addEventListener('DOMContentLoaded', () => {
     let audioContext = null;
     let isPlaying = false;
     let currentOscillator = null;
-    // currentGainNode, currentPannerNode は削除し、元の状態に戻しました
 
     // --- ヘルパー関数 ---
 
@@ -31,20 +30,8 @@ window.addEventListener('DOMContentLoaded', () => {
         return audioContext;
     }
 
-    /**
-     * UIを初期状態（停止状態）に戻す
-     */
     function resetUI() {
         isPlaying = false;
-        if (currentOscillator) {
-            // 安全のため、オシレーターが残っていたら接続を解除
-            try {
-                currentOscillator.stop(0); // 既に停止していてもエラーにならないように
-                currentOscillator.disconnect();
-            } catch (e) {
-                // 停止済みの場合のエラーを無視
-            }
-        }
         currentOscillator = null;
         previewButton.textContent = 'プレビュー再生';
         previewButton.disabled = false;
@@ -58,14 +45,28 @@ window.addEventListener('DOMContentLoaded', () => {
         return {
             duration: parseFloat(durationInput.value) || 30,
             onDuration: parseFloat(onDurationInput.value) || 1,
-            offDuration: parseFloat(offDurationInput.value) || 1,
+            offDuration: parseFloat(offDurationInput.value) || 0,
             frequency: parseFloat(frequencyInput.value) || 440,
             gain: parseFloat(gainInput.value) || 0.5,
             pan: parseFloat(panInput.value) || 0
         };
     }
 
-    // --- AudioContext/WAV関連の関数 (元の状態に戻しました) ---
+    // ▼▼▼ 追加: OFF時間が0のときにON入力を無効化する関数 ▼▼▼
+    function toggleOnInputState() {
+        const offVal = parseFloat(offDurationInput.value);
+        // OFFが0または空（0扱い）の場合
+        if (isNaN(offVal) || offVal <= 0) {
+            onDurationInput.disabled = true;
+            onDurationInput.style.backgroundColor = "#e9ecef"; // 視覚的に無効化を強調
+        } else {
+            onDurationInput.disabled = false;
+            onDurationInput.style.backgroundColor = ""; // 元に戻す
+        }
+    }
+    // ▲▲▲ 追加 ▲▲▲
+
+    // --- AudioContext/WAV関連の関数 ---
 
     function createSineWaveBuffer(params) {
         const { duration, onDuration, offDuration, frequency, gain, pan } = params;
@@ -76,21 +77,27 @@ window.addEventListener('DOMContentLoaded', () => {
         const oscillator = audioContext.createOscillator();
         oscillator.type = 'sine';
         oscillator.frequency.setValueAtTime(frequency, 0);
+
         const gainNode = audioContext.createGain();
         gainNode.gain.setValueAtTime(0, 0);
+
         const pannerNode = audioContext.createStereoPanner();
         pannerNode.pan.setValueAtTime(pan, 0);
+
         oscillator.connect(gainNode);
         gainNode.connect(pannerNode);
         pannerNode.connect(audioContext.destination);
 
-        let currentTime = 0;
-
-        while (currentTime < duration) {
-            gainNode.gain.setValueAtTime(gain, currentTime);
-            currentTime += onDuration;
-            gainNode.gain.setValueAtTime(0, currentTime);
-            currentTime += offDuration;
+        if (offDuration <= 0) {
+            gainNode.gain.setValueAtTime(gain, 0);
+        } else {
+            let currentTime = 0;
+            while (currentTime < duration) {
+                gainNode.gain.setValueAtTime(gain, currentTime);
+                currentTime += onDuration;
+                gainNode.gain.setValueAtTime(0, currentTime);
+                currentTime += offDuration;
+            }
         }
 
         oscillator.start(0);
@@ -109,7 +116,6 @@ window.addEventListener('DOMContentLoaded', () => {
             oscillator.frequency.setValueAtTime(frequency, 0);
 
             const gainNode = context.createGain();
-            // playSineWave内のゲイン設定は元の状態に戻しました
             gainNode.gain.setValueAtTime(0, context.currentTime);
 
             const pannerNode = context.createStereoPanner();
@@ -119,20 +125,25 @@ window.addEventListener('DOMContentLoaded', () => {
             gainNode.connect(pannerNode);
             pannerNode.connect(context.destination);
 
-            currentOscillator = oscillator; // オシレーターのみグローバルに保持
+            currentOscillator = oscillator;
 
-            let currentTime = context.currentTime;
-            const endTime = currentTime + duration;
+            let startTime = context.currentTime;
+            let endTime = startTime + duration;
 
-            while (currentTime < endTime) {
-                gainNode.gain.setValueAtTime(gain, currentTime);
-                currentTime += onDuration;
-                gainNode.gain.setValueAtTime(0, currentTime);
-                currentTime += offDuration;
+            if (offDuration <= 0) {
+                gainNode.gain.setValueAtTime(gain, startTime);
+            } else {
+                let currentTime = startTime;
+                while (currentTime < endTime) {
+                    gainNode.gain.setValueAtTime(gain, currentTime);
+                    currentTime += onDuration;
+                    gainNode.gain.setValueAtTime(0, currentTime);
+                    currentTime += offDuration;
+                }
             }
 
-            oscillator.start(context.currentTime);
-            oscillator.stop(context.currentTime + duration);
+            oscillator.start(startTime);
+            oscillator.stop(endTime);
 
             oscillator.onended = () => {
                 oscillator.disconnect();
@@ -143,10 +154,62 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Audio Paramatersの即時更新関数 (削除しました) ---
+    function bufferToWavBlob(buffer) {
+        const numOfChan = buffer.numberOfChannels;
+        const sampleRate = buffer.sampleRate;
+        const bitsPerSample = 16;
+        const bytesPerSample = bitsPerSample / 8;
+        const pcmDataL = buffer.getChannelData(0);
+        const pcmDataR = buffer.getChannelData(1);
+        const dataLength = pcmDataL.length;
+        const dataSize = dataLength * numOfChan * bytesPerSample;
+        const bufferSize = 44 + dataSize;
+        const arrayBuffer = new ArrayBuffer(bufferSize);
+        const view = new DataView(arrayBuffer);
+        writeString(view, 0, 'RIFF');
+        view.setUint32(4, bufferSize - 8, true);
+        writeString(view, 8, 'WAVE');
+        writeString(view, 12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, numOfChan, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * numOfChan * bytesPerSample, true);
+        view.setUint16(32, numOfChan * bytesPerSample, true);
+        view.setUint16(34, bitsPerSample, true);
+        writeString(view, 36, 'data');
+        view.setUint32(40, dataSize, true);
+        let offset = 44;
+        for (let i = 0; i < dataLength; i++) {
+            let sL = Math.max(-1, Math.min(1, pcmDataL[i]));
+            let valL = sL < 0 ? sL * 0x8000 : sL * 0x7FFF;
+            view.setInt16(offset, valL, true);
+            offset += bytesPerSample;
+            let sR = Math.max(-1, Math.min(1, pcmDataR[i]));
+            let valR = sR < 0 ? sR * 0x8000 : sR * 0x7FFF;
+            view.setInt16(offset, valR, true);
+            offset += bytesPerSample;
+        }
+        return new Blob([view], { type: 'audio/wav' });
+    }
+
+    function downloadBlob(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        downloadLink.href = url;
+        downloadLink.download = filename;
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+        }, 100);
+    }
+
+    function writeString(view, offset, string) {
+        for (let i = 0; i < string.length; i++) {
+            view.setUint8(offset + i, string.charCodeAt(i));
+        }
+    }
 
 
-    // --- 波形描画関数 (省略) ---
+    // --- Canvasの高解像度対応と初期設定 (変更なし) ---
 
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
@@ -175,26 +238,37 @@ window.addEventListener('DOMContentLoaded', () => {
         ctx.strokeStyle = '#007bff';
         ctx.lineWidth = 2;
         const currentDuration = params.duration;
+
+        let safePeriod = period;
+        if (safePeriod <= 0) safePeriod = 0.1;
+
         let cyclesToDraw = 2;
-        if (period <= 0) return;
-        const maxCyclesToShow = Math.ceil(currentDuration / period);
+        const maxCyclesToShow = Math.ceil(currentDuration / safePeriod);
         if (maxCyclesToShow > 2) {
             cyclesToDraw = Math.min(10, maxCyclesToShow);
         }
-        const timeRange = period * cyclesToDraw;
+
+        const timeRange = safePeriod * cyclesToDraw;
         if (timeRange === 0) {
             return;
         }
+
         let firstPoint = true;
         for (let x = 0; x <= width; x++) {
             const t = (x / width) * timeRange;
-            const t_in_period = t % period;
+            const t_in_period = t % safePeriod;
             let instantaneous_gain = 0;
-            if (t_in_period < onDuration) {
+
+            if (offDuration <= 0) {
                 instantaneous_gain = gain;
             } else {
-                instantaneous_gain = 0;
+                if (t_in_period < onDuration) {
+                    instantaneous_gain = gain;
+                } else {
+                    instantaneous_gain = 0;
+                }
             }
+
             const y = instantaneous_gain * Math.sin(2 * Math.PI * frequency * t);
             const canvasY = midY - (y * midY);
             if (firstPoint) {
@@ -221,61 +295,84 @@ window.addEventListener('DOMContentLoaded', () => {
 
     inputElementsToWatch.forEach(input => {
 
-        // 1. inputイベント: リアルタイムフィードバック + 再生停止ロジックを追加
+        // 1. inputイベント
         input.addEventListener('input', () => {
 
-            // スライダーの値表示の更新
+            if (input.type === 'number') {
+                let currentValue = parseFloat(input.value);
+                const minValue = parseFloat(input.min);
+
+                if (isNaN(currentValue) || input.value.trim() === '') {
+                    if (!isNaN(minValue)) {
+                        input.value = minValue;
+                    } else if (input.id === 'offDuration') {
+                        input.value = 0;
+                    } else {
+                        input.value = input.defaultValue;
+                    }
+                    currentValue = parseFloat(input.value);
+                }
+
+                if (!isNaN(minValue) && currentValue < minValue) {
+                    input.value = minValue;
+                }
+            }
+
             if (input === gainInput) {
                 gainValueDisplay.textContent = parseFloat(gainInput.value).toFixed(2);
             } else if (input === panInput) {
                 panValueDisplay.textContent = parseFloat(panInput.value).toFixed(2);
             }
 
+            // ▼▼▼ 追加: OFF時間の変更時にON入力欄を制御 ▼▼▼
+            if (input === offDurationInput) {
+                toggleOnInputState();
+            }
+            // ▲▲▲ 追加 ▲▲▲
+
             drawWaveform();
 
-            // ★ プレビュー再生中の場合、即座に停止する ★
             if (isPlaying) {
                 if (currentOscillator) {
                     currentOscillator.stop();
-                    // currentOscillatorのonendedハンドラがresetUIを呼ぶため、ここでisPlaying=falseは設定しない
                 }
             }
         });
 
-        // 2. changeイベント: 値が確定したとき（フォーカスが外れたとき）にバリデーションと修正を実行
-        if (input.type === 'number' || input === gainInput || input === panInput) {
+        // 2. changeイベント
+        if (input.type === 'number') {
             input.addEventListener('change', () => {
+                let currentValue = parseFloat(input.value);
+                const minValue = parseFloat(input.min);
+                const defaultValue = input.defaultValue;
 
-                // 数値入力フィールドのみバリデーションとゼロ除去を行う
-                if (input.type === 'number') {
-                    let currentValue = parseFloat(input.value);
-                    const minValue = parseFloat(input.min);
-                    const defaultValue = input.defaultValue;
+                let needsCorrection = false;
 
-                    let needsCorrection = false;
-
-                    if (isNaN(currentValue) || input.value.trim() === '') {
-                        needsCorrection = true;
-                    }
-
-                    if (!isNaN(minValue) && currentValue < minValue) {
-                        needsCorrection = true;
-                    }
-
-                    if (needsCorrection) {
-                        input.value = defaultValue;
-                        currentValue = parseFloat(defaultValue);
-                    }
-
-                    if (!isNaN(currentValue)) {
-                        input.value = currentValue.toString();
-                    }
+                if (isNaN(currentValue) || input.value.trim() === '') {
+                    needsCorrection = true;
                 }
 
-                // 値が修正された可能性があるため、波形を再描画
+                if (!isNaN(minValue) && currentValue < minValue) {
+                    needsCorrection = true;
+                }
+
+                if (needsCorrection) {
+                    input.value = defaultValue;
+                    currentValue = parseFloat(defaultValue);
+                }
+
+                if (!isNaN(currentValue)) {
+                    input.value = currentValue.toString();
+                }
+
+                // ▼▼▼ 追加: changeイベント時にもON入力欄を制御 (リセットなどで値が変わった場合) ▼▼▼
+                if (input === offDurationInput) {
+                    toggleOnInputState();
+                }
+                // ▲▲▲ 追加 ▲▲▲
+
                 drawWaveform();
 
-                // changeイベントでも再生中なら停止 (手入力してEnterを押した場合など)
                 if (isPlaying) {
                     if (currentOscillator) {
                         currentOscillator.stop();
@@ -294,16 +391,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 currentOscillator.stop();
             }
         } else {
-            // 再生前は念のためすべてのフィールドの値を確定させる (changeイベントを手動で発火)
-            inputElementsToWatch.forEach(input => {
-                if (input.type === 'number' || input.type === 'range') {
-                    input.dispatchEvent(new Event('change'));
-                }
-            });
-
             const params = getParameters();
 
-            // 最終バリデーション
             if (isNaN(params.duration) || params.duration <= 0) { alert("全体の長さを正しく入力してください。"); return; }
             if (isNaN(params.onDuration) || params.onDuration <= 0) { alert("音が鳴る時間を正しく入力してください。"); return; }
             if (isNaN(params.offDuration) || params.offDuration < 0) { alert("無音の時間を正しく入力してください。"); return; }
@@ -325,21 +414,13 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
     /**
-     * 「ダウンロード」ボタンがクリックされたときの処理 (変更なし)
+     * 「ダウンロード」ボタンがクリックされたときの処理
      */
     generateButton.addEventListener('click', async () => {
-
-        // ダウンロード前は念のためすべてのフィールドの値を確定させる (changeイベントを手動で発火)
-        inputElementsToWatch.forEach(input => {
-            if (input.type === 'number' || input.type === 'range') {
-                input.dispatchEvent(new Event('change'));
-            }
-        });
 
         const params = getParameters();
         const { duration, onDuration, offDuration, frequency, gain, pan } = params;
 
-        // 最終バリデーション
         if (isNaN(duration) || duration <= 0) { alert("全体の長さを正しく入力してください。"); return; }
         if (isNaN(onDuration) || onDuration <= 0) { alert("音が鳴る時間を正しく入力してください。"); return; }
         if (isNaN(offDuration) || offDuration < 0) { alert("無音の時間を正しく入力してください。"); return; }
@@ -379,6 +460,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
     // --- 初期化 ---
+    toggleOnInputState(); // 初期状態のチェック
     drawWaveform();
     panValueDisplay.textContent = parseFloat(panInput.value).toFixed(2);
 });
