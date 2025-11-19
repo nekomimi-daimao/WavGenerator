@@ -38,9 +38,6 @@ window.addEventListener('DOMContentLoaded', () => {
         previewButton.style.backgroundColor = '#28a745';
     }
 
-    /**
-     * 最新の入力パラメータをオブジェクトとして取得する関数
-     */
     function getParameters() {
         return {
             duration: parseFloat(durationInput.value) || 30,
@@ -52,19 +49,16 @@ window.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // ▼▼▼ 追加: OFF時間が0のときにON入力を無効化する関数 ▼▼▼
     function toggleOnInputState() {
         const offVal = parseFloat(offDurationInput.value);
-        // OFFが0または空（0扱い）の場合
         if (isNaN(offVal) || offVal <= 0) {
             onDurationInput.disabled = true;
-            onDurationInput.style.backgroundColor = "#e9ecef"; // 視覚的に無効化を強調
+            onDurationInput.style.backgroundColor = "#e9ecef";
         } else {
             onDurationInput.disabled = false;
-            onDurationInput.style.backgroundColor = ""; // 元に戻す
+            onDurationInput.style.backgroundColor = "";
         }
     }
-    // ▲▲▲ 追加 ▲▲▲
 
     // --- AudioContext/WAV関連の関数 ---
 
@@ -209,7 +203,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- Canvasの高解像度対応と初期設定 (変更なし) ---
+    // --- Canvasの高解像度対応と初期設定 ---
 
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
@@ -295,28 +289,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
     inputElementsToWatch.forEach(input => {
 
-        // 1. inputイベント
+        // 1. inputイベント: 入力中は値を強制変更しない
         input.addEventListener('input', () => {
 
-            if (input.type === 'number') {
-                let currentValue = parseFloat(input.value);
-                const minValue = parseFloat(input.min);
-
-                if (isNaN(currentValue) || input.value.trim() === '') {
-                    if (!isNaN(minValue)) {
-                        input.value = minValue;
-                    } else if (input.id === 'offDuration') {
-                        input.value = 0;
-                    } else {
-                        input.value = input.defaultValue;
-                    }
-                    currentValue = parseFloat(input.value);
-                }
-
-                if (!isNaN(minValue) && currentValue < minValue) {
-                    input.value = minValue;
-                }
-            }
+            // ここにあった「値の強制書き換えロジック」を削除しました。
+            // 入力中は表示の更新と、必要であれば再生停止のみを行います。
 
             if (input === gainInput) {
                 gainValueDisplay.textContent = parseFloat(gainInput.value).toFixed(2);
@@ -324,11 +301,9 @@ window.addEventListener('DOMContentLoaded', () => {
                 panValueDisplay.textContent = parseFloat(panInput.value).toFixed(2);
             }
 
-            // ▼▼▼ 追加: OFF時間の変更時にON入力欄を制御 ▼▼▼
             if (input === offDurationInput) {
                 toggleOnInputState();
             }
-            // ▲▲▲ 追加 ▲▲▲
 
             drawWaveform();
 
@@ -339,7 +314,7 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // 2. changeイベント
+        // 2. changeイベント: 値が確定した時にバリデーションと修正を実行
         if (input.type === 'number') {
             input.addEventListener('change', () => {
                 let currentValue = parseFloat(input.value);
@@ -348,28 +323,30 @@ window.addEventListener('DOMContentLoaded', () => {
 
                 let needsCorrection = false;
 
+                // 値が不正または空の場合
                 if (isNaN(currentValue) || input.value.trim() === '') {
                     needsCorrection = true;
                 }
 
+                // 最小値チェック
                 if (!isNaN(minValue) && currentValue < minValue) {
                     needsCorrection = true;
                 }
 
                 if (needsCorrection) {
+                    // 最小値ではなく、デフォルト値に戻す
                     input.value = defaultValue;
                     currentValue = parseFloat(defaultValue);
                 }
 
+                // 先頭ゼロの除去 (例: "01" -> "1")
                 if (!isNaN(currentValue)) {
                     input.value = currentValue.toString();
                 }
 
-                // ▼▼▼ 追加: changeイベント時にもON入力欄を制御 (リセットなどで値が変わった場合) ▼▼▼
                 if (input === offDurationInput) {
                     toggleOnInputState();
                 }
-                // ▲▲▲ 追加 ▲▲▲
 
                 drawWaveform();
 
@@ -396,6 +373,7 @@ window.addEventListener('DOMContentLoaded', () => {
             if (isNaN(params.duration) || params.duration <= 0) { alert("全体の長さを正しく入力してください。"); return; }
             if (isNaN(params.onDuration) || params.onDuration <= 0) { alert("音が鳴る時間を正しく入力してください。"); return; }
             if (isNaN(params.offDuration) || params.offDuration < 0) { alert("無音の時間を正しく入力してください。"); return; }
+
             if (isNaN(params.frequency) || params.frequency < 20 || params.frequency > 99999) { alert("周波数を20Hzから99999Hzの間で正しく入力してください。"); return; }
             if (isNaN(params.gain) || params.gain < 0 || params.gain > 1) { alert("ゲインは0から1の間で入力してください。"); return; }
             if (isNaN(params.pan) || params.pan < -1 || params.pan > 1) { alert("パンは-1から1の間で入力してください。"); return; }
@@ -460,7 +438,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
     // --- 初期化 ---
-    toggleOnInputState(); // 初期状態のチェック
+    toggleOnInputState();
     drawWaveform();
     panValueDisplay.textContent = parseFloat(panInput.value).toFixed(2);
 });
