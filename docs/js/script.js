@@ -30,6 +30,9 @@ window.addEventListener('DOMContentLoaded', () => {
         return audioContext;
     }
 
+    /**
+     * UIを初期状態（停止状態）に戻す
+     */
     function resetUI() {
         isPlaying = false;
         currentOscillator = null;
@@ -38,6 +41,9 @@ window.addEventListener('DOMContentLoaded', () => {
         previewButton.style.backgroundColor = '#28a745';
     }
 
+    /**
+     * 最新の入力パラメータをオブジェクトとして取得する関数
+     */
     function getParameters() {
         return {
             duration: parseFloat(durationInput.value) || 30,
@@ -49,6 +55,9 @@ window.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    /**
+     * OFF時間が0のときにON入力を無効化する関数
+     */
     function toggleOnInputState() {
         const offVal = parseFloat(offDurationInput.value);
         if (isNaN(offVal) || offVal <= 0) {
@@ -191,6 +200,9 @@ window.addEventListener('DOMContentLoaded', () => {
         const url = URL.createObjectURL(blob);
         downloadLink.href = url;
         downloadLink.download = filename;
+        // ▼▼▼ 修正箇所: これが抜けていました ▼▼▼
+        downloadLink.click();
+        // ▲▲▲ 修正箇所 ▲▲▲
         setTimeout(() => {
             URL.revokeObjectURL(url);
         }, 100);
@@ -289,11 +301,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
     inputElementsToWatch.forEach(input => {
 
-        // 1. inputイベント: 入力中は値を強制変更しない
+        // 1. inputイベント: リアルタイムフィードバック
         input.addEventListener('input', () => {
-
-            // ここにあった「値の強制書き換えロジック」を削除しました。
-            // 入力中は表示の更新と、必要であれば再生停止のみを行います。
 
             if (input === gainInput) {
                 gainValueDisplay.textContent = parseFloat(gainInput.value).toFixed(2);
@@ -314,7 +323,7 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // 2. changeイベント: 値が確定した時にバリデーションと修正を実行
+        // 2. changeイベント: バリデーションと修正
         if (input.type === 'number') {
             input.addEventListener('change', () => {
                 let currentValue = parseFloat(input.value);
@@ -323,23 +332,19 @@ window.addEventListener('DOMContentLoaded', () => {
 
                 let needsCorrection = false;
 
-                // 値が不正または空の場合
                 if (isNaN(currentValue) || input.value.trim() === '') {
                     needsCorrection = true;
                 }
 
-                // 最小値チェック
                 if (!isNaN(minValue) && currentValue < minValue) {
                     needsCorrection = true;
                 }
 
                 if (needsCorrection) {
-                    // 最小値ではなく、デフォルト値に戻す
                     input.value = defaultValue;
                     currentValue = parseFloat(defaultValue);
                 }
 
-                // 先頭ゼロの除去 (例: "01" -> "1")
                 if (!isNaN(currentValue)) {
                     input.value = currentValue.toString();
                 }
@@ -368,12 +373,18 @@ window.addEventListener('DOMContentLoaded', () => {
                 currentOscillator.stop();
             }
         } else {
+            // 再生前は念のためchangeイベントを発火させて値を確定させる
+            inputElementsToWatch.forEach(input => {
+                if (input.type === 'number' || input.type === 'range') {
+                    input.dispatchEvent(new Event('change'));
+                }
+            });
+
             const params = getParameters();
 
             if (isNaN(params.duration) || params.duration <= 0) { alert("全体の長さを正しく入力してください。"); return; }
             if (isNaN(params.onDuration) || params.onDuration <= 0) { alert("音が鳴る時間を正しく入力してください。"); return; }
             if (isNaN(params.offDuration) || params.offDuration < 0) { alert("無音の時間を正しく入力してください。"); return; }
-
             if (isNaN(params.frequency) || params.frequency < 20 || params.frequency > 99999) { alert("周波数を20Hzから99999Hzの間で正しく入力してください。"); return; }
             if (isNaN(params.gain) || params.gain < 0 || params.gain > 1) { alert("ゲインは0から1の間で入力してください。"); return; }
             if (isNaN(params.pan) || params.pan < -1 || params.pan > 1) { alert("パンは-1から1の間で入力してください。"); return; }
@@ -395,6 +406,12 @@ window.addEventListener('DOMContentLoaded', () => {
      * 「ダウンロード」ボタンがクリックされたときの処理
      */
     generateButton.addEventListener('click', async () => {
+
+        inputElementsToWatch.forEach(input => {
+            if (input.type === 'number' || input.type === 'range') {
+                input.dispatchEvent(new Event('change'));
+            }
+        });
 
         const params = getParameters();
         const { duration, onDuration, offDuration, frequency, gain, pan } = params;
