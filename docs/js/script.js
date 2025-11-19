@@ -38,7 +38,6 @@ window.addEventListener('DOMContentLoaded', () => {
         currentOscillator = null;
         previewButton.textContent = 'プレビュー再生';
         previewButton.disabled = false;
-        // 停止ボタンの色を再生ボタンの色に戻す
         previewButton.style.backgroundColor = '#28a745';
     }
 
@@ -176,7 +175,6 @@ window.addEventListener('DOMContentLoaded', () => {
         const url = URL.createObjectURL(blob);
         downloadLink.href = url;
         downloadLink.download = filename;
-        downloadLink.click();
         setTimeout(() => {
             URL.revokeObjectURL(url);
         }, 100);
@@ -189,7 +187,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- Canvasの高解像度対応と初期設定 ---
+    // --- Canvasの高解像度対応と初期設定 (変更なし) ---
 
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
@@ -200,34 +198,24 @@ window.addEventListener('DOMContentLoaded', () => {
     const visualWidth = canvas.clientWidth;
     const visualHeight = canvas.clientHeight;
 
-
-    // --- 波形描画関数 (変更なし) ---
-
     function drawWaveform() {
         const params = getParameters();
         const { frequency, gain, onDuration, offDuration } = params;
         const period = onDuration + offDuration;
-
         const width = visualWidth;
         const height = visualHeight;
         const midY = height / 2;
-
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // 中心線
         ctx.beginPath();
         ctx.strokeStyle = '#ccc';
         ctx.lineWidth = 1;
         ctx.moveTo(0, midY);
         ctx.lineTo(width, midY);
         ctx.stroke();
-
         ctx.beginPath();
         ctx.strokeStyle = '#007bff';
         ctx.lineWidth = 2;
-
         const currentDuration = params.duration;
-
         let cyclesToDraw = 2;
         if (period <= 0) return;
         const maxCyclesToShow = Math.ceil(currentDuration / period);
@@ -238,23 +226,18 @@ window.addEventListener('DOMContentLoaded', () => {
         if (timeRange === 0) {
             return;
         }
-
         let firstPoint = true;
-
         for (let x = 0; x <= width; x++) {
             const t = (x / width) * timeRange;
             const t_in_period = t % period;
-
             let instantaneous_gain = 0;
             if (t_in_period < onDuration) {
                 instantaneous_gain = gain;
             } else {
                 instantaneous_gain = 0;
             }
-
             const y = instantaneous_gain * Math.sin(2 * Math.PI * frequency * t);
             const canvasY = midY - (y * midY);
-
             if (firstPoint) {
                 ctx.moveTo(x, canvasY);
                 firstPoint = false;
@@ -278,36 +261,10 @@ window.addEventListener('DOMContentLoaded', () => {
     ];
 
     inputElementsToWatch.forEach(input => {
+
+        // 1. inputイベント: リアルタイムフィードバック (波形描画とスライダー表示の更新)
         input.addEventListener('input', () => {
 
-            // ▼▼▼ 数値入力のバリデーションと強制 ▼▼▼
-            if (input.type === 'number') {
-                let currentValue = parseFloat(input.value);
-                const minValue = parseFloat(input.min);
-
-                // 値が不正または空の場合、最小値またはデフォルト値に戻す
-                if (isNaN(currentValue) || input.value.trim() === '') {
-                    // 空欄の場合、最小値に戻す (minが設定されている場合)
-                    if (!isNaN(minValue)) {
-                        input.value = minValue;
-                    } else if (input.id === 'offDuration') {
-                        // offDurationはmin=0なので通常minValueでカバーされるが念のため
-                        input.value = 0;
-                    } else {
-                        // それ以外はHTMLのデフォルト値に戻す
-                        input.value = input.defaultValue;
-                    }
-                    currentValue = parseFloat(input.value);
-                }
-
-                // 最小値チェック
-                if (!isNaN(minValue) && currentValue < minValue) {
-                    input.value = minValue;
-                }
-            }
-            // ▲▲▲ 数値入力のバリデーションと強制 ▲▲▲
-
-            // スライダーの値表示の更新
             if (input === gainInput) {
                 gainValueDisplay.textContent = parseFloat(gainInput.value).toFixed(2);
             } else if (input === panInput) {
@@ -316,26 +273,68 @@ window.addEventListener('DOMContentLoaded', () => {
 
             drawWaveform();
         });
+
+        // 2. changeイベント: 値が確定したとき（フォーカスが外れたとき）にバリデーションと修正を実行
+        if (input.type === 'number') {
+            input.addEventListener('change', () => {
+                let currentValue = parseFloat(input.value);
+                const minValue = parseFloat(input.min);
+                // デフォルト値を取得
+                const defaultValue = input.defaultValue;
+
+                let needsCorrection = false;
+
+                // A. 値が不正または空の場合
+                if (isNaN(currentValue) || input.value.trim() === '') {
+                    needsCorrection = true;
+                }
+
+                // B. 最小値チェック (最小値を下回っている場合)
+                if (!isNaN(minValue) && currentValue < minValue) {
+                    needsCorrection = true;
+                }
+
+                if (needsCorrection) {
+                    // 最小値ではなく、デフォルト値に戻す
+                    input.value = defaultValue;
+                    currentValue = parseFloat(defaultValue);
+                }
+
+                // C. 先頭ゼロの除去
+                if (!isNaN(currentValue)) {
+                    // parseFloat()で数値に変換して再び文字列にすることで、先頭の不要なゼロが除去される
+                    input.value = currentValue.toString();
+                }
+
+                // 値が修正された可能性があるため、波形を再描画
+                drawWaveform();
+            });
+        }
     });
 
     /**
-     * 「プレビュー再生/停止」ボタンの処理 (統合ロジック)
+     * 「プレビュー再生/停止」ボタンの処理
      */
     previewButton.addEventListener('click', () => {
         if (isPlaying) {
-            // ▼ 停止処理 ▼
             if (currentOscillator) {
                 currentOscillator.stop();
             }
         } else {
-            // ▼ 再生処理 ▼
+            // 再生前は念のためすべてのフィールドの値を確定させる (changeイベントを手動で発火)
+            inputElementsToWatch.forEach(input => {
+                if (input.type === 'number' || input.type === 'range') {
+                    input.dispatchEvent(new Event('change'));
+                }
+            });
+
             const params = getParameters();
 
-            // バリデーション (入力値の空欄防止はinputイベントで対応済みだが、最終チェック)
+            // 最終バリデーション
             if (isNaN(params.duration) || params.duration <= 0) { alert("全体の長さを正しく入力してください。"); return; }
             if (isNaN(params.onDuration) || params.onDuration <= 0) { alert("音が鳴る時間を正しく入力してください。"); return; }
             if (isNaN(params.offDuration) || params.offDuration < 0) { alert("無音の時間を正しく入力してください。"); return; }
-            if (isNaN(params.frequency) || params.frequency <= 0) { alert("周波数を正しく入力してください。"); return; }
+            if (isNaN(params.frequency) || params.frequency < 20 || params.frequency > 99999) { alert("周波数を20Hzから99999Hzの間で正しく入力してください。"); return; }
             if (isNaN(params.gain) || params.gain < 0 || params.gain > 1) { alert("ゲインは0から1の間で入力してください。"); return; }
             if (isNaN(params.pan) || params.pan < -1 || params.pan > 1) { alert("パンは-1から1の間で入力してください。"); return; }
 
@@ -357,14 +356,21 @@ window.addEventListener('DOMContentLoaded', () => {
      */
     generateButton.addEventListener('click', async () => {
 
+        // ダウンロード前は念のためすべてのフィールドの値を確定させる (changeイベントを手動で発火)
+        inputElementsToWatch.forEach(input => {
+            if (input.type === 'number' || input.type === 'range') {
+                input.dispatchEvent(new Event('change'));
+            }
+        });
+
         const params = getParameters();
         const { duration, onDuration, offDuration, frequency, gain, pan } = params;
 
-        // バリデーション (最終チェック)
+        // 最終バリデーション
         if (isNaN(duration) || duration <= 0) { alert("全体の長さを正しく入力してください。"); return; }
         if (isNaN(onDuration) || onDuration <= 0) { alert("音が鳴る時間を正しく入力してください。"); return; }
         if (isNaN(offDuration) || offDuration < 0) { alert("無音の時間を正しく入力してください。"); return; }
-        if (isNaN(frequency) || frequency <= 0) { alert("周波数を正しく入力してください。"); return; }
+        if (isNaN(frequency) || frequency < 20 || frequency > 99999) { alert("周波数を20Hzから99999Hzの間で正しく入力してください。"); return; }
         if (isNaN(gain) || gain < 0 || gain > 1) { alert("ゲインは0から1の間で入力してください。"); return; }
         if (isNaN(pan) || pan < -1 || pan > 1) { alert("パンは-1から1の間で入力してください。"); return; }
 
@@ -376,7 +382,6 @@ window.addEventListener('DOMContentLoaded', () => {
             const audioBuffer = await createSineWaveBuffer(params);
             const wavBlob = bufferToWavBlob(audioBuffer);
 
-            // ファイル名生成ロジック
             const panLabel = pan === 0 ? 'C' : (pan < 0 ? 'L' : 'R') + Math.abs(pan).toFixed(2).replace('.', '');
             const gainLabel = gain.toFixed(2).replace('.', '');
             const freqLabel = frequency.toFixed(0);
